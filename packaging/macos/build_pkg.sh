@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # LogicCraft CAD - macOS PKG Installer Builder
-# Generates target/installer/LogicCraft-1.0.1.pkg using Apple pkgbuild / productbuild
+# Generates target/installer/LogicCraft-${VERSION}.pkg using Apple pkgbuild / productbuild
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -18,7 +18,8 @@ bash "$SCRIPT_DIR/build_app.sh"
 
 OUT_DIR="$PROJECT_ROOT/target/installer"
 APP_DIR="$OUT_DIR/LogicCraft.app"
-PKG_OUTPUT="$OUT_DIR/LogicCraft-1.0.1.pkg"
+VERSION=$(grep -m1 '^version' "$PROJECT_ROOT/Cargo.toml" | cut -d '"' -f 2)
+PKG_OUTPUT="$OUT_DIR/LogicCraft-${VERSION}.pkg"
 
 echo "[*] Creating macOS Component Package (.pkg)..."
 
@@ -27,7 +28,7 @@ if command -v pkgbuild >/dev/null 2>&1; then
         --component "$APP_DIR" \
         --install-location "/Applications" \
         --identifier "com.craftanything.logiccraft" \
-        --version "1.0.1" \
+        --version "$VERSION" \
         "$PKG_OUTPUT"
 
     echo "========================================================"
@@ -37,7 +38,7 @@ if command -v pkgbuild >/dev/null 2>&1; then
 else
     echo "[!] 'pkgbuild' command not found (requires macOS)."
     echo "[*] Packaging .app into compressed tarball for macOS transfer..."
-    tar -czf "$OUT_DIR/LogicCraft-v1.0.1-macos.tar.gz" -C "$OUT_DIR" "LogicCraft.app"
+    tar -czf "$OUT_DIR/LogicCraft-v${VERSION}-macos.tar.gz" -C "$OUT_DIR" "LogicCraft.app"
     echo " [SUCCESS] Created fallback macOS archive:"
-    echo "           $OUT_DIR/LogicCraft-v1.0.1-macos.tar.gz"
+    echo "           $OUT_DIR/LogicCraft-v${VERSION}-macos.tar.gz"
 fi

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # LogicCraft CAD - Linux Portable Archive Builder
-# Generates target/installer/LogicCraft-v1.0.1-linux-x64.tar.gz
+# Generates target/installer/LogicCraft-v${VERSION}-linux-x64.tar.gz
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -14,8 +14,9 @@ echo "========================================================"
 cd "$PROJECT_ROOT"
 
 OUT_DIR="$PROJECT_ROOT/target/installer"
-STAGE_DIR="$OUT_DIR/LogicCraft-v1.0.1-linux-x64"
-TARBALL_OUTPUT="$OUT_DIR/LogicCraft-v1.0.1-linux-x64.tar.gz"
+VERSION=$(grep -m1 '^version' "$PROJECT_ROOT/Cargo.toml" | cut -d '"' -f 2)
+STAGE_DIR="$OUT_DIR/LogicCraft-v${VERSION}-linux-x64"
+TARBALL_OUTPUT="$OUT_DIR/LogicCraft-v${VERSION}-linux-x64.tar.gz"
 
 echo "[*] Preparing Linux distribution stage..."
 rm -rf "$STAGE_DIR" "$TARBALL_OUTPUT"
@@ -65,7 +66,7 @@ echo "Desktop launcher installed to $DESKTOP_DIR/logiccraft.desktop"
 EOF
 chmod +x "$STAGE_DIR/install.sh"
 
-tar -czf "$TARBALL_OUTPUT" -C "$OUT_DIR" "LogicCraft-v1.0.1-linux-x64"
+tar -czf "$TARBALL_OUTPUT" -C "$OUT_DIR" "LogicCraft-v${VERSION}-linux-x64"
 rm -rf "$STAGE_DIR"
 
 echo "========================================================"

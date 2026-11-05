@@ -120,9 +120,9 @@ This script builds release binaries and packages all Windows distribution format
 powershell -ExecutionPolicy Bypass -File packaging\windows\build_installer.ps1
 ```
 Output files in `target\installer\`:
-- `LogicCraft-v1.0.1-windows-x64.zip` — Standalone portable archive with updater and installer scripts
-- `LogicCraft-1.0.1-x64.msi` — Windows Installer package (when WiX or `cargo-packager` is installed)
-- `LogicCraft-Setup-1.0.1-x64.exe` — Inno Setup executable (when `iscc.exe` is installed)
+- `LogicCraft-v1.0.2-windows-x64.zip` — Standalone portable archive with updater and installer scripts
+- `LogicCraft-1.0.2-x64.msi` — Windows Installer package (when WiX or `cargo-packager` is installed)
+- `LogicCraft-Setup-1.0.2-x64.exe` — Inno Setup executable (when `iscc.exe` is installed)
 
 ### 2. Direct User Installation Script
 Installs LogicCraft CAD directly to `%LOCALAPPDATA%\Programs\LogicCraft`, registers the `.lcc` file association, and creates Start Menu and Desktop shortcuts:
@@ -145,14 +145,14 @@ Builds the standalone macOS `.app` bundle with icon conversion and generates a d
 ```bash
 bash packaging/macos/build_dmg.sh
 ```
-Output: `target/installer/LogicCraft-1.0.1.dmg`
+Output: `target/installer/LogicCraft-1.0.2.dmg`
 
 ### 2. macOS Component Package (`.pkg`)
 Generates an Apple installer package configured for `/Applications`:
 ```bash
 bash packaging/macos/build_pkg.sh
 ```
-Output: `target/installer/LogicCraft-1.0.1.pkg` (or fallback `LogicCraft-v1.0.1-macos.tar.gz`)
+Output: `target/installer/LogicCraft-1.0.2.pkg` (or fallback `LogicCraft-v1.0.2-macos.tar.gz`)
 
 ---
 
@@ -163,11 +163,11 @@ Packages the binaries, `.desktop` launcher, and high-resolution icons into a nat
 ```bash
 bash packaging/linux/build_deb.sh
 ```
-Output: `target/installer/logiccraft_1.0.1_amd64.deb`
+Output: `target/installer/logiccraft_1.0.2_amd64.deb`
 
 To install:
 ```bash
-sudo dpkg -i target/installer/logiccraft_1.0.1_amd64.deb
+sudo dpkg -i target/installer/logiccraft_1.0.2_amd64.deb
 ```
 
 ### 2. Standalone Linux Portable Tarball (`.tar.gz`)
@@ -175,7 +175,7 @@ Generates a portable archive with standalone executable, desktop launcher, and u
 ```bash
 bash packaging/linux/build_tarball.sh
 ```
-Output: `target/installer/LogicCraft-v1.0.1-linux-x64.tar.gz`
+Output: `target/installer/LogicCraft-v1.0.2-linux-x64.tar.gz`
 
 ---
 
@@ -230,14 +230,14 @@ powershell -ExecutionPolicy Bypass -File packaging\windows\update.ps1 -InstallDi
 The repository is configured with automated GitHub Actions workflows:
 
 ### Creating a New Version & GitHub Release
-1. Update the version in `Cargo.toml` (e.g. `1.0.1`, `1.1.0`).
+1. Update the version in `Cargo.toml` (e.g. `1.0.2`, `1.1.0`).
 2. Commit and tag the release:
    ```powershell
    git add .
-   git commit -m "fix: v1.0.1 bug fix for file association, initial file loading, and .lcc extension"
-   git tag -a v1.0.1 -m "LogicCraft CAD v1.0.1 Bug Fix Release"
+   git commit -m "fix: v1.0.2 cross-platform updater and complete circuit state persistence including Karnaugh maps"
+   git tag -a v1.0.2 -m "LogicCraft CAD v1.0.2 Release"
    git push origin main
-   git push origin v1.0.1
+   git push origin v1.0.2
    ```
 3. The GitHub Actions release workflow (`.github/workflows/release.yml`) automatically triggers on the `v*` tag:
    - Builds optimized multi-platform release binaries on Windows, macOS, and Linux

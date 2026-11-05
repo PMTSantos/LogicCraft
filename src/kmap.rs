@@ -1,15 +1,19 @@
 use eframe::egui::{self, Align2, FontFamily, FontId, Pos2, Rect, Stroke, Vec2};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TruthTableKMap {
     pub name: String,
     pub num_vars: usize, // 2, 3, or 4
     pub var_names: [String; 4],
     pub output_name: String,
     pub values: Vec<u8>, // 0 = 0, 1 = 1, 2 = X (Don't care); length = 16
+    #[serde(default)]
     pub pinned_on_canvas: bool,
+    #[serde(default)]
     pub func_pinned_on_canvas: bool,
+    #[serde(default)]
     pub canvas_pos: [f32; 2],
+    #[serde(default)]
     pub func_canvas_pos: [f32; 2],
 }
 

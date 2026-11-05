@@ -468,7 +468,7 @@ impl LogicCraftApp {
         match std::fs::read_to_string(path) {
             Ok(txt) => {
                 self.save_undo_snapshot();
-                match import_cdl(&mut self.sim, &self.lib, &txt) {
+                match import_cdl(&mut self.sim, &mut self.lib, &txt) {
                     Ok(()) => {
                         self.current_file_path = Some(path.to_path_buf());
                         self.status_message = format!("Opened circuit from {}", path.display());
@@ -501,7 +501,7 @@ impl LogicCraftApp {
                 .save_file()
         });
         if let Some(path) = target {
-            let xml = export_cdl(&self.sim);
+            let xml = export_cdl(&self.sim, Some(&self.lib));
             if std::fs::write(&path, xml).is_ok() {
                 self.current_file_path = Some(path.clone());
                 self.status_message = format!("Saved circuit to {}", path.display());
@@ -909,7 +909,7 @@ mod tests {
         let lib = GateLibrary::new();
         let mut sim = CircuitSimulator::new(&lib);
         sim.populate_demo_circuit(&lib);
-        let xml = export_cdl(&sim);
+        let xml = export_cdl(&sim, Some(&lib));
 
         let tmp_dir = std::env::temp_dir();
         let tmp_path = tmp_dir.join("test_circuit_sample.lcc");
@@ -981,5 +981,44 @@ mod tests {
         assert!(!app.sim.pages[0].gates.is_empty());
 
         let _ = std::fs::remove_file(&tmp_path);
+    }
+
+    #[test]
+    fn test_kmap_and_full_circuit_roundtrip() {
+        let mut lib = GateLibrary::new();
+        let mut sim = CircuitSimulator::new(&lib);
+        sim.pages[0].name = "Custom Page Alpha".to_string();
+
+        let mut km = crate::kmap::TruthTableKMap::new_default("Test Karnaugh Map");
+        km.num_vars = 4;
+        km.var_names = ["W".into(), "X".into(), "Y".into(), "Z".into()];
+        km.output_name = "OUT_RESULT".into();
+        km.values[3] = 1;
+        km.values[7] = 2; // Don't care
+        km.pinned_on_canvas = true;
+        km.canvas_pos = [12.5, -45.0];
+        sim.kmaps.push(km.clone());
+        sim.active_kmap = sim.kmaps.len() - 1;
+
+        let xml = export_cdl(&sim, Some(&lib));
+        assert!(xml.contains("<kmaps>"));
+        assert!(xml.contains("Test Karnaugh Map"));
+        assert!(xml.contains("OUT_RESULT"));
+        assert!(xml.contains("Custom Page Alpha"));
+
+        let mut restored_sim = CircuitSimulator::new(&lib);
+        import_cdl(&mut restored_sim, &mut lib, &xml).expect("Should successfully import CDL/LCC");
+
+        assert_eq!(restored_sim.pages[0].name, "Custom Page Alpha");
+        assert_eq!(restored_sim.kmaps.len(), sim.kmaps.len());
+        let restored_km = &restored_sim.kmaps[restored_sim.active_kmap];
+        assert_eq!(restored_km.name, "Test Karnaugh Map");
+        assert_eq!(restored_km.num_vars, 4);
+        assert_eq!(restored_km.var_names, ["W", "X", "Y", "Z"]);
+        assert_eq!(restored_km.output_name, "OUT_RESULT");
+        assert_eq!(restored_km.values[3], 1);
+        assert_eq!(restored_km.values[7], 2);
+        assert!(restored_km.pinned_on_canvas);
+        assert_eq!(restored_km.canvas_pos, [12.5, -45.0]);
     }
 }

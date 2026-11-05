@@ -948,7 +948,7 @@ impl LogicCraftApp {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("Build: v1.0.1 // x86_64")
+                        RichText::new(format!("Build: v{} // {}", env!("CARGO_PKG_VERSION"), std::env::consts::ARCH))
                             .font(FontId::new(11.0, FontFamily::Monospace))
                             .color(p.text_secondary),
                     );
@@ -992,18 +992,28 @@ impl LogicCraftApp {
                     .inner_margin(egui::Margin::same(8.0))
                     .stroke(Stroke::new(1.0, p.border_secondary))
                     .show(ui, |ui| {
+                        let pkg_ver = env!("CARGO_PKG_VERSION");
+                        let arch_desc = if cfg!(target_os = "windows") {
+                            "x86_64 WINDOWS (GUI SUBSYSTEM)"
+                        } else if cfg!(target_os = "macos") {
+                            "macOS (UNIVERSAL / COCOA)"
+                        } else if cfg!(target_os = "linux") {
+                            "LINUX (X11 / WAYLAND)"
+                        } else {
+                            "CROSS-PLATFORM"
+                        };
                         let (v_label, ch_label, arch_label, set_label) = match self.locale {
                             crate::i18n::Locale::Pt => (
-                                "VERSÃO ATUAL INSTALADA: 1.0.1",
-                                "CANAL DE ATUALIZAÇÃO: ESTÁVEL (OFICIAL)",
-                                "ARQUITETURA ALVO: x86_64 WINDOWS (SUBSISTEMA GUI)",
-                                "PERSISTÊNCIA DE DEFINIÇÕES: ATIVA (settings.json)",
+                                format!("VERSÃO ATUAL INSTALADA: {pkg_ver}"),
+                                "CANAL DE ATUALIZAÇÃO: ESTÁVEL (OFICIAL)".to_string(),
+                                format!("ARQUITETURA ALVO: {arch_desc}"),
+                                "PERSISTÊNCIA DE DEFINIÇÕES: ATIVA (settings.json)".to_string(),
                             ),
                             _ => (
-                                "CURRENT INSTALLED VERSION: 1.0.1",
-                                "RELEASE CHANNEL: STABLE (OFFICIAL)",
-                                "TARGET ARCHITECTURE: x86_64 WINDOWS (GUI SUBSYSTEM)",
-                                "SETTINGS PERSISTENCE: ENABLED (settings.json)",
+                                format!("CURRENT INSTALLED VERSION: {pkg_ver}"),
+                                "RELEASE CHANNEL: STABLE (OFFICIAL)".to_string(),
+                                format!("TARGET ARCHITECTURE: {arch_desc}"),
+                                "SETTINGS PERSISTENCE: ENABLED (settings.json)".to_string(),
                             ),
                         };
                         ui.label(
@@ -1039,7 +1049,35 @@ impl LogicCraftApp {
                         )
                         .clicked()
                     {
-                        self.status_message = format!("LogicCraft CAD v1.0.1: {}", tr.update_status_latest);
+                        let pkg_version = env!("CARGO_PKG_VERSION");
+                        let output = std::process::Command::new("curl")
+                            .args([
+                                "-s",
+                                "-L",
+                                "-H",
+                                "User-Agent: LogicCraft-Updater",
+                                "https://api.github.com/repos/PMTSantos/LogicCraft/releases/latest",
+                            ])
+                            .output();
+
+                        let mut remote_found = None;
+                        if let Ok(out) = output {
+                            if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&out.stdout) {
+                                if let Some(tag) = val.get("tag_name").and_then(|t| t.as_str()) {
+                                    remote_found = Some(tag.trim_start_matches(|c| c == 'v' || c == 'V').to_string());
+                                }
+                            }
+                        }
+
+                        if let Some(remote_ver) = remote_found {
+                            if remote_ver != pkg_version {
+                                self.status_message = format!("Update available on GitHub: v{remote_ver} (Installed: v{pkg_version})");
+                            } else {
+                                self.status_message = format!("LogicCraft CAD v{pkg_version}: {}", tr.update_status_latest);
+                            }
+                        } else {
+                            self.status_message = format!("LogicCraft CAD v{pkg_version}: {}", tr.update_status_latest);
+                        }
                     }
 
                     if ui
@@ -1050,31 +1088,107 @@ impl LogicCraftApp {
                         )
                         .clicked()
                     {
-                        #[cfg(windows)]
-                        {
-                            let mut updater_path = std::env::current_exe()
-                                .ok()
-                                .and_then(|p| p.parent().map(|d| d.join("logiccraft-updater.exe")));
-                            if updater_path.as_ref().map(|p| !p.exists()).unwrap_or(true) {
-                                if let Ok(dir) = std::env::var("LOCALAPPDATA") {
-                                    let p = std::path::PathBuf::from(dir)
-                                        .join("Programs")
-                                        .join("LogicCraft")
-                                        .join("logiccraft-updater.exe");
-                                    if p.exists() {
-                                        updater_path = Some(p);
-                                    }
+                        let updater_name = if cfg!(windows) { "logiccraft-updater.exe" } else { "logiccraft-updater" };
+                        let mut updater_path = std::env::current_exe()
+                            .ok()
+                            .and_then(|p| p.parent().map(|d| d.join(updater_name)));
+
+                        if updater_path.as_ref().map(|p| !p.exists()).unwrap_or(true) {
+                            #[cfg(windows)]
+                            if let Ok(dir) = std::env::var("LOCALAPPDATA") {
+                                let p = std::path::PathBuf::from(dir)
+                                    .join("Programs")
+                                    .join("LogicCraft")
+                                    .join(updater_name);
+                                if p.exists() {
+                                    updater_path = Some(p);
                                 }
                             }
-                            if let Some(exe) = updater_path {
-                                if exe.exists() {
-                                    let _ = std::process::Command::new(exe).spawn();
-                                } else {
-                                    let _ = std::process::Command::new("powershell")
-                                        .args(["-ExecutionPolicy", "Bypass", "-File", "packaging\\windows\\update.ps1"])
-                                        .spawn();
+
+                            #[cfg(target_os = "macos")]
+                            for candidate in [
+                                "/Applications/LogicCraft.app/Contents/MacOS/logiccraft-updater",
+                                "/usr/local/bin/logiccraft-updater",
+                            ] {
+                                let p = std::path::PathBuf::from(candidate);
+                                if p.exists() {
+                                    updater_path = Some(p);
+                                    break;
                                 }
                             }
+
+                            #[cfg(target_os = "linux")]
+                            for candidate in [
+                                "/usr/bin/logiccraft-updater",
+                                "/usr/local/bin/logiccraft-updater",
+                                "/opt/logiccraft/logiccraft-updater",
+                            ] {
+                                let p = std::path::PathBuf::from(candidate);
+                                if p.exists() {
+                                    updater_path = Some(p);
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Local / development search fallback
+                        if updater_path.as_ref().map(|p| !p.exists()).unwrap_or(true) {
+                            for candidate in [
+                                std::path::PathBuf::from("target").join("release").join(updater_name),
+                                std::path::PathBuf::from("target").join("debug").join(updater_name),
+                            ] {
+                                if candidate.exists() {
+                                    updater_path = Some(candidate);
+                                    break;
+                                }
+                            }
+                        }
+
+                        let launched = if let Some(exe) = updater_path.filter(|p| p.exists()) {
+                            #[cfg(windows)]
+                            {
+                                std::process::Command::new("cmd")
+                                    .args(["/c", "start", "", exe.to_str().unwrap_or("logiccraft-updater.exe")])
+                                    .spawn()
+                                    .is_ok()
+                            }
+                            #[cfg(target_os = "macos")]
+                            {
+                                std::process::Command::new("open")
+                                    .args(["-a", "Terminal", exe.to_str().unwrap_or("logiccraft-updater")])
+                                    .spawn()
+                                    .is_ok()
+                            }
+                            #[cfg(target_os = "linux")]
+                            {
+                                std::process::Command::new("x-terminal-emulator")
+                                    .args(["-e", exe.to_str().unwrap_or("logiccraft-updater")])
+                                    .spawn()
+                                    .or_else(|_| std::process::Command::new(exe).spawn())
+                                    .is_ok()
+                            }
+                            #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+                            {
+                                std::process::Command::new(exe).spawn().is_ok()
+                            }
+                        } else {
+                            false
+                        };
+
+                        if !launched {
+                            // If updater binary was not located, launch the official GitHub releases page directly
+                            #[cfg(windows)]
+                            let _ = std::process::Command::new("cmd")
+                                .args(["/c", "start", "", "https://github.com/PMTSantos/LogicCraft/releases/latest"])
+                                .spawn();
+                            #[cfg(target_os = "macos")]
+                            let _ = std::process::Command::new("open")
+                                .arg("https://github.com/PMTSantos/LogicCraft/releases/latest")
+                                .spawn();
+                            #[cfg(target_os = "linux")]
+                            let _ = std::process::Command::new("xdg-open")
+                                .arg("https://github.com/PMTSantos/LogicCraft/releases/latest")
+                                .spawn();
                         }
                     }
                 });

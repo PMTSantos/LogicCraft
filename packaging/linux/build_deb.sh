@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # LogicCraft CAD - Debian / Ubuntu (.deb) Package Builder
-# Generates target/installer/logiccraft_1.0.1_amd64.deb
+# Generates target/installer/logiccraft_${VERSION}_amd64.deb
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -15,7 +15,8 @@ cd "$PROJECT_ROOT"
 
 OUT_DIR="$PROJECT_ROOT/target/installer"
 STAGE_DIR="$OUT_DIR/deb_stage"
-DEB_OUTPUT="$OUT_DIR/logiccraft_1.0.1_amd64.deb"
+VERSION=$(grep -m1 '^version' "$PROJECT_ROOT/Cargo.toml" | cut -d '"' -f 2)
+DEB_OUTPUT="$OUT_DIR/logiccraft_${VERSION}_amd64.deb"
 
 echo "[*] Preparing DEB stage directory structure..."
 rm -rf "$STAGE_DIR" "$DEB_OUTPUT"
@@ -40,9 +41,9 @@ cp "packaging/linux/logiccraft.desktop" "$STAGE_DIR/usr/share/applications/logic
 cp "packaging/assets/icon.png" "$STAGE_DIR/usr/share/icons/hicolor/256x256/apps/logiccraft.png"
 
 # 3. Create DEBIAN/control file
-cat << 'EOF' > "$STAGE_DIR/DEBIAN/control"
+cat << EOF > "$STAGE_DIR/DEBIAN/control"
 Package: logiccraft
-Version: 1.0.1
+Version: ${VERSION}
 Section: electronics
 Priority: optional
 Architecture: amd64

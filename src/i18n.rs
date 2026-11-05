@@ -610,7 +610,7 @@ pub const EN_STRINGS: UiStrings = UiStrings {
     about_subtitle: "A modern cross-platform digital logic circuit builder, 5-state simulator, and K-Map studio.",
     update_menu_item: "Check for Updates...",
     update_window_title: "LogicCraft CAD Updater",
-    update_status_latest: "You are running LogicCraft CAD v1.0.1 (Latest Release).",
+    update_status_latest: "You are running the latest official release.",
     update_check_btn: "🔄 Check for Updates Now",
     update_run_btn: "🚀 Run LogicCraft Updater",
 };
@@ -760,7 +760,7 @@ pub const PT_STRINGS: UiStrings = UiStrings {
     about_subtitle: "Simulador moderno de circuitos lógicos digitais (5 estados), análise com osciloscópio e síntese com Mapas de Karnaugh.",
     update_menu_item: "Verificar Atualizações...",
     update_window_title: "Atualizador do LogicCraft CAD",
-    update_status_latest: "Está a utilizar o LogicCraft CAD v1.0.1 (Versão Mais Recente).",
+    update_status_latest: "Está a utilizar a versão oficial mais recente.",
     update_check_btn: "🔄 Verificar Atualizações Agora",
     update_run_btn: "🚀 Executar Atualizador do LogicCraft",
 };
@@ -910,7 +910,7 @@ pub const ES_STRINGS: UiStrings = UiStrings {
     about_subtitle: "Simulador moderno de circuitos lógicos digitales de 5 estados y estudio de Mapas de Karnaugh.",
     update_menu_item: "Buscar Actualizaciones...",
     update_window_title: "Actualizador de LogicCraft CAD",
-    update_status_latest: "Está utilizando LogicCraft CAD v1.0.1 (Última Versión).",
+    update_status_latest: "Está utilizando la versión oficial más reciente.",
     update_check_btn: "🔄 Buscar Actualizaciones Ahora",
     update_run_btn: "🚀 Ejecutar Actualizador de LogicCraft",
 };
@@ -1060,7 +1060,7 @@ pub const FR_STRINGS: UiStrings = UiStrings {
     about_subtitle: "Simulateur moderne de circuits logiques numériques à 5 états et studio de Karnaugh.",
     update_menu_item: "Rechercher les Mises à Jour...",
     update_window_title: "Programme de Mise à Jour LogicCraft CAD",
-    update_status_latest: "Vous utilisez LogicCraft CAD v1.0.1 (Dernière Version).",
+    update_status_latest: "Vous utilisez la dernière version officielle.",
     update_check_btn: "🔄 Rechercher les Mises à Jour",
     update_run_btn: "🚀 Lancer la Mise à Jour",
 };
@@ -1210,7 +1210,7 @@ pub const DE_STRINGS: UiStrings = UiStrings {
     about_subtitle: "Moderner plattformübergreifender 5-Zustands-Digital-Logiksimulator und KV-Diagramm-Studio.",
     update_menu_item: "Nach Updates suchen...",
     update_window_title: "LogicCraft CAD Updater",
-    update_status_latest: "Sie verwenden LogicCraft CAD v1.0.1 (Neueste Version).",
+    update_status_latest: "Sie verwenden die neueste offizielle Version.",
     update_check_btn: "🔄 Jetzt nach Updates suchen",
     update_run_btn: "🚀 LogicCraft Updater starten",
 };

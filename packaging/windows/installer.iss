@@ -1,8 +1,8 @@
 ; Inno Setup Script for LogicCraft CAD
-; Generates LogicCraft-Setup-1.0.1-x64.exe
+; Generates LogicCraft-Setup-1.0.2-x64.exe
 
 #define MyAppName "LogicCraft CAD"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "Craft Anything"
 #define MyAppURL "https://github.com/PMTSantos/LogicCraft"
 #define MyAppExeName "logiccraft.exe"

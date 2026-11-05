@@ -1,18 +1,22 @@
 use std::collections::{HashMap, VecDeque};
 
+use crate::custom_component::CustomComponentSpec;
+use crate::kmap::TruthTableKMap;
 use crate::library::GateLibrary;
 use crate::mechanics::{LogicState, DEFAULT_VIEW_ZOOM};
 use crate::simulator::{
     CircuitPage, CircuitSimulator, GateInstance, OscopeChannel, PinRef, WireInstance,
 };
 
-pub fn export_cdl(sim: &CircuitSimulator) -> String {
+pub fn export_cdl(sim: &CircuitSimulator, lib: Option<&GateLibrary>) -> String {
     let mut out = String::new();
     out.push_str("<circuit>\n");
     out.push_str(&format!("<CurrentPage>{}</CurrentPage>\n", sim.current_page));
 
     for (idx, page) in sim.pages.iter().enumerate() {
         out.push_str(&format!("<page {idx}>\n"));
+        out.push_str(&format!("<PageName>{}</PageName>\n", page.name));
+        out.push_str(&format!("<PageZoom>{:.4}</PageZoom>\n", page.zoom_world_per_px));
         out.push_str(&format!(
             "<PageViewport>{:.2},{:.2},{:.2},{:.2}</PageViewport>\n",
             page.pan_world[0] - 40.0,
@@ -45,12 +49,28 @@ pub fn export_cdl(sim: &CircuitSimulator) -> String {
             for (k, v) in &g.lparams {
                 out.push_str(&format!("<lparam>{k} {v}</lparam>\n"));
             }
+            if !g.memory.is_empty() {
+                out.push_str("<memory>");
+                let mut keys: Vec<u16> = g.memory.keys().copied().collect();
+                keys.sort_unstable();
+                for addr in keys {
+                    let val = g.memory.get(&addr).copied().unwrap_or(0);
+                    out.push_str(&format!("{addr:04X}:{val:04X} "));
+                }
+                out.push_str("</memory>\n");
+            }
             out.push_str("</gate>\n");
         }
 
         for w in &page.wires {
             out.push_str("<wire>\n");
             out.push_str(&format!("<ID>{}</ID>\n", w.id));
+            if !w.label.is_empty() && w.label != format!("W{}", w.id) {
+                out.push_str(&format!("<label>{}</label>\n", w.label));
+            }
+            if let (Some(mx), Some(my)) = (w.custom_mid_x, w.custom_mid_y) {
+                out.push_str(&format!("<custom_mid>{:.2},{:.2}</custom_mid>\n", mx, my));
+            }
             out.push_str("<shape>\n");
             for seg in w.points.windows(2) {
                 let p0 = seg[0];
@@ -74,11 +94,48 @@ pub fn export_cdl(sim: &CircuitSimulator) -> String {
         out.push_str(&format!("</page {idx}>\n"));
     }
 
+    // Export Karnaugh Maps and Truth Tables
+    if !sim.kmaps.is_empty() {
+        out.push_str("<kmaps>\n");
+        out.push_str(&format!("<ActiveKMap>{}</ActiveKMap>\n", sim.active_kmap));
+        for km in &sim.kmaps {
+            out.push_str("<kmap>\n");
+            out.push_str(&format!("<name>{}</name>\n", km.name));
+            out.push_str(&format!("<num_vars>{}</num_vars>\n", km.num_vars));
+            out.push_str(&format!(
+                "<var_names>{},{},{},{}</var_names>\n",
+                km.var_names[0], km.var_names[1], km.var_names[2], km.var_names[3]
+            ));
+            out.push_str(&format!("<output_name>{}</output_name>\n", km.output_name));
+            let vals_str: Vec<String> = km.values.iter().map(|v| v.to_string()).collect();
+            out.push_str(&format!("<values>{}</values>\n", vals_str.join(",")));
+            out.push_str(&format!("<pinned_on_canvas>{}</pinned_on_canvas>\n", km.pinned_on_canvas));
+            out.push_str(&format!("<func_pinned_on_canvas>{}</func_pinned_on_canvas>\n", km.func_pinned_on_canvas));
+            out.push_str(&format!("<canvas_pos>{:.2},{:.2}</canvas_pos>\n", km.canvas_pos[0], km.canvas_pos[1]));
+            out.push_str(&format!("<func_canvas_pos>{:.2},{:.2}</func_canvas_pos>\n", km.func_canvas_pos[0], km.func_canvas_pos[1]));
+            out.push_str("</kmap>\n");
+        }
+        out.push_str("</kmaps>\n");
+    }
+
+    // Export Custom Components specifications so circuit is fully self-contained
+    if let Some(lib) = lib {
+        if !lib.custom_specs.is_empty() {
+            out.push_str("<custom_components>\n");
+            for spec in lib.custom_specs.values() {
+                if let Ok(json) = serde_json::to_string(spec) {
+                    out.push_str(&format!("<spec>{}</spec>\n", json));
+                }
+            }
+            out.push_str("</custom_components>\n");
+        }
+    }
+
     out.push_str("</circuit>\n");
     out
 }
 
-pub fn import_cdl(sim: &mut CircuitSimulator, lib: &GateLibrary, content: &str) -> Result<(), String> {
+pub fn import_cdl(sim: &mut CircuitSimulator, lib: &mut GateLibrary, content: &str) -> Result<(), String> {
     let mut pages = Vec::new();
     let mut max_gate_id = 1u32;
     let mut max_wire_id = 1u32;
@@ -93,12 +150,29 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &GateLibrary, content: &str) 
             continue;
         };
         let page_str = &content[start + open_tag.len()..start + end_rel];
+
+        let page_name = extract_tag(page_str, "PageName")
+            .unwrap_or_else(|| format!("Page {}", page_idx + 1));
+        let page_zoom = extract_tag(page_str, "PageZoom")
+            .and_then(|s| s.trim().parse::<f32>().ok())
+            .unwrap_or(DEFAULT_VIEW_ZOOM);
+        let pan_world = extract_tag(page_str, "PageViewport")
+            .and_then(|s| {
+                let mut sp = s.split(',');
+                let x0 = sp.next()?.trim().parse::<f32>().ok()?;
+                let y0 = sp.next()?.trim().parse::<f32>().ok()?;
+                let x1 = sp.next()?.trim().parse::<f32>().ok()?;
+                let y1 = sp.next()?.trim().parse::<f32>().ok()?;
+                Some([(x0 + x1) * 0.5, (y0 + y1) * 0.5])
+            })
+            .unwrap_or([0.0, 0.0]);
+
         let mut page = CircuitPage {
-            name: format!("Page {}", page_idx + 1),
+            name: page_name,
             gates: Vec::new(),
             wires: Vec::new(),
-            pan_world: [0.0, 0.0],
-            zoom_world_per_px: DEFAULT_VIEW_ZOOM,
+            pan_world,
+            zoom_world_per_px: page_zoom,
         };
 
         // Parse <gate>...</gate> blocks
@@ -162,6 +236,19 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &GateLibrary, content: &str) 
                 }
             }
 
+            if let Some(mem_str) = extract_tag(g_block, "memory") {
+                for pair in mem_str.split_whitespace() {
+                    if let Some((a_str, d_str)) = pair.split_once(':') {
+                        if let (Ok(addr), Ok(val)) = (
+                            u16::from_str_radix(a_str.trim(), 16),
+                            u16::from_str_radix(d_str.trim(), 16),
+                        ) {
+                            inst.memory.insert(addr, val);
+                        }
+                    }
+                }
+            }
+
             for tag_name in ["input", "output"] {
                 for io_block in extract_all_tags(g_block, tag_name) {
                     if let Some(pin_name) = extract_tag(&io_block, "ID") {
@@ -185,9 +272,32 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &GateLibrary, content: &str) 
             page.gates.push(inst);
         }
 
-        // Parse <wire>...</wire> blocks or reconstruct from wire_pin_links
+        // Parse wire labels and custom mid points from <wire>...</wire>
+        let mut wire_labels: HashMap<u32, String> = HashMap::new();
+        let mut wire_custom_mids: HashMap<u32, (f32, f32)> = HashMap::new();
+        for w_block in extract_all_tags(page_str, "wire") {
+            if let Some(wid) = extract_tag(&w_block, "ID").and_then(|s| s.trim().parse::<u32>().ok()) {
+                if let Some(lbl) = extract_tag(&w_block, "label") {
+                    wire_labels.insert(wid, lbl.trim().to_string());
+                }
+                if let Some(cm) = extract_tag(&w_block, "custom_mid") {
+                    if let Some((x_str, y_str)) = cm.split_once(',') {
+                        if let (Ok(x), Ok(y)) = (x_str.trim().parse::<f32>(), y_str.trim().parse::<f32>()) {
+                            wire_custom_mids.insert(wid, (x, y));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Construct WireInstances from wire_pin_links and wire metadata
         for (wid, endpoints) in wire_pin_links {
             if endpoints.len() >= 2 {
+                let label = wire_labels.remove(&wid).unwrap_or_else(|| format!("W{wid}"));
+                let (custom_mid_x, custom_mid_y) = match wire_custom_mids.remove(&wid) {
+                    Some((x, y)) => (Some(x), Some(y)),
+                    None => (None, None),
+                };
                 page.wires.push(WireInstance {
                     id: wid,
                     endpoints,
@@ -196,10 +306,10 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &GateLibrary, content: &str) 
                     state: LogicState::Zero,
                     bus_bits: 1,
                     bus_states: vec![LogicState::Zero],
-                    label: format!("W{wid}"),
+                    label,
                     selected: false,
-                    custom_mid_x: None,
-                    custom_mid_y: None,
+                    custom_mid_x,
+                    custom_mid_y,
                 });
             }
         }
@@ -212,9 +322,97 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &GateLibrary, content: &str) 
     }
 
     sim.pages = pages;
-    sim.current_page = 0;
+    let loaded_cp = extract_tag(content, "CurrentPage")
+        .and_then(|s| s.trim().parse::<usize>().ok())
+        .unwrap_or(0);
+    sim.current_page = loaded_cp.min(sim.pages.len().saturating_sub(1));
     sim.next_gate_id = max_gate_id;
     sim.next_wire_id = max_wire_id;
+
+    // Parse Karnaugh Maps and Truth Tables
+    if let Some(kmaps_block) = extract_tag(content, "kmaps") {
+        let active_kmap = extract_tag(&kmaps_block, "ActiveKMap")
+            .and_then(|s| s.trim().parse::<usize>().ok())
+            .unwrap_or(0);
+        let mut parsed_kmaps = Vec::new();
+        for km_block in extract_all_tags(&kmaps_block, "kmap") {
+            let name = extract_tag(&km_block, "name").unwrap_or_else(|| "K-Map".to_string());
+            let num_vars = extract_tag(&km_block, "num_vars")
+                .and_then(|s| s.trim().parse::<usize>().ok())
+                .unwrap_or(3)
+                .clamp(2, 4);
+            let var_names = if let Some(v_str) = extract_tag(&km_block, "var_names") {
+                let mut parts = v_str.split(',').map(|s| s.trim().to_string());
+                [
+                    parts.next().unwrap_or_else(|| "A".into()),
+                    parts.next().unwrap_or_else(|| "B".into()),
+                    parts.next().unwrap_or_else(|| "C".into()),
+                    parts.next().unwrap_or_else(|| "D".into()),
+                ]
+            } else {
+                ["A".into(), "B".into(), "C".into(), "D".into()]
+            };
+            let output_name = extract_tag(&km_block, "output_name").unwrap_or_else(|| "F".to_string());
+            let mut values = vec![0u8; 16];
+            if let Some(vals_str) = extract_tag(&km_block, "values") {
+                for (idx, token) in vals_str.split(',').enumerate() {
+                    if idx < 16 {
+                        if let Ok(val) = token.trim().parse::<u8>() {
+                            values[idx] = val.min(2);
+                        }
+                    }
+                }
+            }
+            let pinned_on_canvas = extract_tag(&km_block, "pinned_on_canvas")
+                .map(|s| s.trim().eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+            let func_pinned_on_canvas = extract_tag(&km_block, "func_pinned_on_canvas")
+                .map(|s| s.trim().eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+            let canvas_pos = extract_tag(&km_block, "canvas_pos")
+                .and_then(|s| {
+                    let mut sp = s.split(',');
+                    let x = sp.next()?.trim().parse::<f32>().ok()?;
+                    let y = sp.next()?.trim().parse::<f32>().ok()?;
+                    Some([x, y])
+                })
+                .unwrap_or([-8.0, -13.5]);
+            let func_canvas_pos = extract_tag(&km_block, "func_canvas_pos")
+                .and_then(|s| {
+                    let mut sp = s.split(',');
+                    let x = sp.next()?.trim().parse::<f32>().ok()?;
+                    let y = sp.next()?.trim().parse::<f32>().ok()?;
+                    Some([x, y])
+                })
+                .unwrap_or([-8.0, -21.5]);
+
+            parsed_kmaps.push(TruthTableKMap {
+                name,
+                num_vars,
+                var_names,
+                output_name,
+                values,
+                pinned_on_canvas,
+                func_pinned_on_canvas,
+                canvas_pos,
+                func_canvas_pos,
+            });
+        }
+        if !parsed_kmaps.is_empty() {
+            sim.kmaps = parsed_kmaps;
+            sim.active_kmap = active_kmap.min(sim.kmaps.len().saturating_sub(1));
+        }
+    }
+
+    // Parse Custom Components specifications so circuit is fully self-contained
+    if let Some(custom_block) = extract_tag(content, "custom_components") {
+        for spec_str in extract_all_tags(&custom_block, "spec") {
+            if let Ok(spec) = serde_json::from_str::<CustomComponentSpec>(&spec_str) {
+                let _ = lib.register_custom_component(spec);
+            }
+        }
+    }
+
     for i in 0..sim.pages.len() {
         sim.rebuild_wire_geometry(lib, i);
     }
