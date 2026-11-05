@@ -12,7 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const APP_VERSION: &str = "1.0.0";
+const APP_VERSION: &str = "1.0.1";
 const APP_NAME: &str = "LogicCraft CAD";
 const REPO_URL: &str = "https://github.com/PMTSantos/LogicCraft";
 

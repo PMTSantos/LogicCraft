@@ -6,5 +6,5 @@ Icon=logiccraft
 Terminal=false
 Type=Application
 Categories=Development;Engineering;Education;
-MimeType=application/x-cdl;
+MimeType=application/x-logiccraft;application/x-cdl;
 StartupWMClass=logiccraft

@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  LogicCraft CAD - Windows Installer   " -ForegroundColor Cyan
-Write-Host "  Version: 1.0.0                       " -ForegroundColor Cyan
+Write-Host "  Version: 1.0.1                       " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -100,11 +100,11 @@ if ($DesktopShortcut) {
     $DeskShortcut.Save()
 }
 
-Write-Host "[5/5] Registering .cdl file association and Uninstaller in Windows Registry..." -ForegroundColor Green
-# Register .cdl file extension for current user
+Write-Host "[5/5] Registering .lcc file association and Uninstaller in Windows Registry..." -ForegroundColor Green
+# Register .lcc file extension for current user
 $RegPath = "HKCU:\Software\Classes"
-New-Item -Path "$RegPath\.cdl" -Force | Out-Null
-Set-ItemProperty -Path "$RegPath\.cdl" -Name "(Default)" -Value "LogicCraft.Circuit" -Force
+New-Item -Path "$RegPath\.lcc" -Force | Out-Null
+Set-ItemProperty -Path "$RegPath\.lcc" -Name "(Default)" -Value "LogicCraft.Circuit" -Force
 
 New-Item -Path "$RegPath\LogicCraft.Circuit" -Force | Out-Null
 Set-ItemProperty -Path "$RegPath\LogicCraft.Circuit" -Name "(Default)" -Value "LogicCraft Circuit File" -Force
@@ -122,7 +122,7 @@ Copy-Item -Path "$ScriptDir\uninstall.ps1" -Destination "$InstallDir\uninstall.p
 $UninstallReg = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\LogicCraft"
 New-Item -Path $UninstallReg -Force | Out-Null
 Set-ItemProperty -Path $UninstallReg -Name "DisplayName" -Value "LogicCraft CAD" -Force
-Set-ItemProperty -Path $UninstallReg -Name "DisplayVersion" -Value "1.0.0" -Force
+Set-ItemProperty -Path $UninstallReg -Name "DisplayVersion" -Value "1.0.1" -Force
 Set-ItemProperty -Path $UninstallReg -Name "Publisher" -Value "Craft Anything" -Force
 Set-ItemProperty -Path $UninstallReg -Name "InstallLocation" -Value $InstallDir -Force
 Set-ItemProperty -Path $UninstallReg -Name "DisplayIcon" -Value "$InstallDir\icon.ico,0" -Force
@@ -134,5 +134,5 @@ Write-Host "==========================================================" -Foregro
 Write-Host " LogicCraft CAD installed successfully!" -ForegroundColor Green
 Write-Host " Application Path: $InstallDir\logiccraft.exe" -ForegroundColor White
 Write-Host " Shortcuts: Start Menu$(if ($DesktopShortcut) { ', Desktop' })" -ForegroundColor White
-Write-Host " File Association: *.cdl (LogicCraft / CEDAR Logic)" -ForegroundColor White
+Write-Host " File Association: *.lcc (LogicCraft Circuit)" -ForegroundColor White
 Write-Host "==========================================================" -ForegroundColor Cyan

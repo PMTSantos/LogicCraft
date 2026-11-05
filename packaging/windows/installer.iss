@@ -1,13 +1,13 @@
 ; Inno Setup Script for LogicCraft CAD
-; Generates LogicCraft-Setup-1.0.0-x64.exe
+; Generates LogicCraft-Setup-1.0.1-x64.exe
 
 #define MyAppName "LogicCraft CAD"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "Craft Anything"
 #define MyAppURL "https://github.com/PMTSantos/LogicCraft"
 #define MyAppExeName "logiccraft.exe"
 #define MyAppAssocName MyAppName + " Circuit"
-#define MyAppAssocExt ".cdl"
+#define MyAppAssocExt ".lcc"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
 
 [Setup]
@@ -37,7 +37,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "fileassoc"; Description: "Associate LogicCraft with .cdl circuit files"; GroupDescription: "File Associations:"
+Name: "fileassoc"; Description: "Associate LogicCraft with .lcc circuit files"; GroupDescription: "File Associations:"
 
 [Files]
 Source: "..\..\target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion

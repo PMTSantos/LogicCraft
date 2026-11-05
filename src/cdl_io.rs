@@ -208,7 +208,7 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &GateLibrary, content: &str) 
     }
 
     if pages.is_empty() {
-        return Err("No valid <page> blocks found in .cdl file".to_string());
+        return Err("No valid <page> blocks found in circuit file".to_string());
     }
 
     sim.pages = pages;

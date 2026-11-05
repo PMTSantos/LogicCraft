@@ -474,8 +474,8 @@ pub const EN_STRINGS: UiStrings = UiStrings {
 
     file_new: "New Circuit\tCtrl+N",
     file_load_demo: "Load Demo Circuit",
-    file_open: "Open Circuit (.cdl)...\tCtrl+O",
-    file_save: "Save Circuit (.cdl)\tCtrl+S",
+    file_open: "Open Circuit (.lcc / .cdl)...\tCtrl+O",
+    file_save: "Save Circuit (.lcc)\tCtrl+S",
     file_save_as: "Save Circuit As...",
     file_export_grid: "Export with Grid?",
     file_export_color: "Export with Color?",
@@ -610,7 +610,7 @@ pub const EN_STRINGS: UiStrings = UiStrings {
     about_subtitle: "A modern cross-platform digital logic circuit builder, 5-state simulator, and K-Map studio.",
     update_menu_item: "Check for Updates...",
     update_window_title: "LogicCraft CAD Updater",
-    update_status_latest: "You are running LogicCraft CAD v1.0.0 (Latest Release).",
+    update_status_latest: "You are running LogicCraft CAD v1.0.1 (Latest Release).",
     update_check_btn: "🔄 Check for Updates Now",
     update_run_btn: "🚀 Run LogicCraft Updater",
 };
@@ -624,8 +624,8 @@ pub const PT_STRINGS: UiStrings = UiStrings {
 
     file_new: "Novo Circuito\tCtrl+N",
     file_load_demo: "Carregar Circuito de Demonstração",
-    file_open: "Abrir Circuito (.cdl)...\tCtrl+O",
-    file_save: "Guardar Circuito (.cdl)\tCtrl+S",
+    file_open: "Abrir Circuito (.lcc / .cdl)...\tCtrl+O",
+    file_save: "Guardar Circuito (.lcc)\tCtrl+S",
     file_save_as: "Guardar Circuito Como...",
     file_export_grid: "Exportar com Grelha?",
     file_export_color: "Exportar a Cores?",
@@ -760,7 +760,7 @@ pub const PT_STRINGS: UiStrings = UiStrings {
     about_subtitle: "Simulador moderno de circuitos lógicos digitais (5 estados), análise com osciloscópio e síntese com Mapas de Karnaugh.",
     update_menu_item: "Verificar Atualizações...",
     update_window_title: "Atualizador do LogicCraft CAD",
-    update_status_latest: "Está a utilizar o LogicCraft CAD v1.0.0 (Versão Mais Recente).",
+    update_status_latest: "Está a utilizar o LogicCraft CAD v1.0.1 (Versão Mais Recente).",
     update_check_btn: "🔄 Verificar Atualizações Agora",
     update_run_btn: "🚀 Executar Atualizador do LogicCraft",
 };
@@ -774,8 +774,8 @@ pub const ES_STRINGS: UiStrings = UiStrings {
 
     file_new: "Nuevo Circuito\tCtrl+N",
     file_load_demo: "Cargar Circuito de Demostración",
-    file_open: "Abrir Circuito (.cdl)...\tCtrl+O",
-    file_save: "Guardar Circuito (.cdl)\tCtrl+S",
+    file_open: "Abrir Circuito (.lcc / .cdl)...\tCtrl+O",
+    file_save: "Guardar Circuito (.lcc)\tCtrl+S",
     file_save_as: "Guardar Circuito Como...",
     file_export_grid: "¿Exportar con Cuadrícula?",
     file_export_color: "¿Exportar en Color?",
@@ -910,7 +910,7 @@ pub const ES_STRINGS: UiStrings = UiStrings {
     about_subtitle: "Simulador moderno de circuitos lógicos digitales de 5 estados y estudio de Mapas de Karnaugh.",
     update_menu_item: "Buscar Actualizaciones...",
     update_window_title: "Actualizador de LogicCraft CAD",
-    update_status_latest: "Está utilizando LogicCraft CAD v1.0.0 (Última Versión).",
+    update_status_latest: "Está utilizando LogicCraft CAD v1.0.1 (Última Versión).",
     update_check_btn: "🔄 Buscar Actualizaciones Ahora",
     update_run_btn: "🚀 Ejecutar Actualizador de LogicCraft",
 };
@@ -924,8 +924,8 @@ pub const FR_STRINGS: UiStrings = UiStrings {
 
     file_new: "Nouveau Circuit\tCtrl+N",
     file_load_demo: "Charger le Circuit de Démo",
-    file_open: "Ouvrir un Circuit (.cdl)...\tCtrl+O",
-    file_save: "Enregistrer le Circuit (.cdl)\tCtrl+S",
+    file_open: "Ouvrir un Circuit (.lcc / .cdl)...\tCtrl+O",
+    file_save: "Enregistrer le Circuit (.lcc)\tCtrl+S",
     file_save_as: "Enregistrer Sous...",
     file_export_grid: "Exporter avec la Grille ?",
     file_export_color: "Exporter en Couleur ?",
@@ -1060,7 +1060,7 @@ pub const FR_STRINGS: UiStrings = UiStrings {
     about_subtitle: "Simulateur moderne de circuits logiques numériques à 5 états et studio de Karnaugh.",
     update_menu_item: "Rechercher les Mises à Jour...",
     update_window_title: "Programme de Mise à Jour LogicCraft CAD",
-    update_status_latest: "Vous utilisez LogicCraft CAD v1.0.0 (Dernière Version).",
+    update_status_latest: "Vous utilisez LogicCraft CAD v1.0.1 (Dernière Version).",
     update_check_btn: "🔄 Rechercher les Mises à Jour",
     update_run_btn: "🚀 Lancer la Mise à Jour",
 };
@@ -1074,8 +1074,8 @@ pub const DE_STRINGS: UiStrings = UiStrings {
 
     file_new: "Neue Schaltung\tCtrl+N",
     file_load_demo: "Demo-Schaltung laden",
-    file_open: "Schaltung öffnen (.cdl)...\tCtrl+O",
-    file_save: "Schaltung speichern (.cdl)\tCtrl+S",
+    file_open: "Schaltung öffnen (.lcc / .cdl)...\tCtrl+O",
+    file_save: "Schaltung speichern (.lcc)\tCtrl+S",
     file_save_as: "Schaltung speichern unter...",
     file_export_grid: "Mit Raster exportieren?",
     file_export_color: "In Farbe exportieren?",
@@ -1210,7 +1210,7 @@ pub const DE_STRINGS: UiStrings = UiStrings {
     about_subtitle: "Moderner plattformübergreifender 5-Zustands-Digital-Logiksimulator und KV-Diagramm-Studio.",
     update_menu_item: "Nach Updates suchen...",
     update_window_title: "LogicCraft CAD Updater",
-    update_status_latest: "Sie verwenden LogicCraft CAD v1.0.0 (Neueste Version).",
+    update_status_latest: "Sie verwenden LogicCraft CAD v1.0.1 (Neueste Version).",
     update_check_btn: "🔄 Jetzt nach Updates suchen",
     update_run_btn: "🚀 LogicCraft Updater starten",
 };

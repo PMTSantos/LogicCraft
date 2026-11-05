@@ -32,12 +32,12 @@ mod theme;
 mod ui_dialogs;
 mod ui_panels;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Key, Pos2, Rect, Sense, Stroke, Vec2};
 
-use crate::cdl_io::export_cdl;
+use crate::cdl_io::{export_cdl, import_cdl};
 use crate::custom_component::builtin_custom_templates;
 use crate::i18n::Locale;
 use crate::settings::AppSettings;
@@ -53,6 +53,7 @@ use crate::simulator::{CircuitPage, CircuitSimulator, GateInstance, PinRef};
 
 fn main() -> eframe::Result<()> {
     let mut screenshot_path: Option<PathBuf> = None;
+    let mut initial_circuit_path: Option<PathBuf> = None;
     let mut settings = AppSettings::load();
     let mut cli_locale: Option<Locale> = None;
     let mut renderer = if let Ok(r) = std::env::var("LOGICCRAFT_RENDERER") {
@@ -83,6 +84,9 @@ fn main() -> eframe::Result<()> {
             renderer = eframe::Renderer::Wgpu;
         } else if arg == "--glow" {
             renderer = eframe::Renderer::Glow;
+        } else if !arg.starts_with('-') {
+            let p = PathBuf::from(&arg);
+            initial_circuit_path = Some(p);
         }
     }
 
@@ -117,7 +121,14 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "LogicCraft",
         native_options,
-        Box::new(move |cc| Box::new(LogicCraftApp::new(cc, screenshot_path, settings))),
+        Box::new(move |cc| {
+            Box::new(LogicCraftApp::new(
+                cc,
+                screenshot_path,
+                initial_circuit_path,
+                settings,
+            ))
+        }),
     )
 }
 
@@ -205,6 +216,7 @@ impl LogicCraftApp {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         screenshot_target: Option<PathBuf>,
+        initial_circuit_path: Option<PathBuf>,
         settings: AppSettings,
     ) -> Self {
         let lib = GateLibrary::new();
@@ -275,8 +287,15 @@ impl LogicCraftApp {
             screenshot_target,
             screenshot_requested: false,
         };
+        if let Some(ref path) = initial_circuit_path {
+            if path.exists() {
+                app.load_circuit_from_path(path);
+            } else {
+                app.current_file_path = Some(path.clone());
+            }
+        }
         #[cfg(debug_assertions)]
-        if app.screenshot_target.is_some() && std::env::var("LOGICCRAFT_NO_DEMO").is_err() {
+        if app.current_file_path.is_none() && app.screenshot_target.is_some() && std::env::var("LOGICCRAFT_NO_DEMO").is_err() {
             app.sim.populate_demo_circuit(&app.lib);
             app.sim.pages.push(CircuitPage::new("ALU Subsystem"));
         }
@@ -445,6 +464,29 @@ impl LogicCraftApp {
         }
     }
 
+    pub fn load_circuit_from_path(&mut self, path: &Path) -> bool {
+        match std::fs::read_to_string(path) {
+            Ok(txt) => {
+                self.save_undo_snapshot();
+                match import_cdl(&mut self.sim, &self.lib, &txt) {
+                    Ok(()) => {
+                        self.current_file_path = Some(path.to_path_buf());
+                        self.status_message = format!("Opened circuit from {}", path.display());
+                        true
+                    }
+                    Err(e) => {
+                        self.status_message = format!("Open error: {e}");
+                        false
+                    }
+                }
+            }
+            Err(e) => {
+                self.status_message = format!("Failed to read file: {e}");
+                false
+            }
+        }
+    }
+
     pub fn save_circuit_dialog(&mut self, save_as: bool) {
         let target = if !save_as {
             self.current_file_path.clone()
@@ -453,14 +495,16 @@ impl LogicCraftApp {
         }
         .or_else(|| {
             rfd::FileDialog::new()
-                .add_filter("LogicCraft / CEDAR Circuit (*.cdl)", &["cdl"])
-                .set_file_name("circuit.cdl")
+                .add_filter("LogicCraft Circuit (*.lcc)", &["lcc"])
+                .add_filter("CEDAR Logic Legacy (*.cdl)", &["cdl"])
+                .set_file_name("circuit.lcc")
                 .save_file()
         });
         if let Some(path) = target {
             let xml = export_cdl(&self.sim);
             if std::fs::write(&path, xml).is_ok() {
-                self.current_file_path = Some(path);
+                self.current_file_path = Some(path.clone());
+                self.status_message = format!("Saved circuit to {}", path.display());
             }
         }
     }
@@ -656,6 +700,23 @@ impl eframe::App for LogicCraftApp {
         self.frame_count = self.frame_count.saturating_add(1);
         self.apply_theme(ctx);
 
+        // Handle drag-and-drop of circuit files into the window
+        let dropped_file = ctx.input(|i| {
+            i.raw.dropped_files.first().and_then(|f| f.path.clone())
+        });
+        if let Some(path) = dropped_file {
+            self.load_circuit_from_path(&path);
+        }
+
+        // Update window title with active file name
+        let title = if let Some(ref p) = self.current_file_path {
+            let fname = p.file_name().and_then(|n| n.to_str()).unwrap_or("circuit.lcc");
+            format!("LogicCraft CAD — {fname}")
+        } else {
+            "LogicCraft CAD — Digital Logic Circuit Studio".to_string()
+        };
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
+
         // Check if a screenshot event arrived from egui ViewportCommand::Screenshot
         let mut received_screenshot: Option<std::sync::Arc<egui::ColorImage>> = None;
         ctx.input(|i| {
@@ -841,5 +902,84 @@ mod tests {
         assert_eq!(app.sim.pages.len(), 2);
         assert_eq!(app.sim.pages[0].name, "Page 1");
         assert_eq!(app.sim.pages[1].name, "Page 3");
+    }
+
+    #[test]
+    fn test_load_circuit_from_path() {
+        let lib = GateLibrary::new();
+        let mut sim = CircuitSimulator::new(&lib);
+        sim.populate_demo_circuit(&lib);
+        let xml = export_cdl(&sim);
+
+        let tmp_dir = std::env::temp_dir();
+        let tmp_path = tmp_dir.join("test_circuit_sample.lcc");
+        std::fs::write(&tmp_path, xml).unwrap();
+
+        let mut app = LogicCraftApp {
+            lib: GateLibrary::new(),
+            sim: CircuitSimulator::new(&lib),
+            locale: Locale::En,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            clipboard_gates: Vec::new(),
+            dark_mode: true,
+            show_gridlines: true,
+            show_wire_conn: true,
+            show_oscope: true,
+            show_memory_editor: false,
+            show_kmap_studio: false,
+            show_custom_ic_studio: false,
+            show_about_dialog: false,
+            show_update_dialog: false,
+            export_with_grid: true,
+            export_with_color: true,
+            canvas_size: Vec2::new(1000.0, 600.0),
+            palette_search: String::new(),
+            active_category: 0,
+            placing_gate_type: None,
+            wiring_from: None,
+            selection_box_start: None,
+            dragging_gate_id: None,
+            drag_anchor_world: [0.0, 0.0],
+            drag_initial_positions: Vec::new(),
+            drag_initial_wire_mids: Vec::new(),
+            dragging_wire: None,
+            dragging_kmap: None,
+            dragging_kmap_func: None,
+            drag_offset_world: [0.0, 0.0],
+            drag_snapshot_saved: false,
+            memory_edit_gate_id: None,
+            new_channel_wire_id: 0,
+            connector_name_draft: String::new(),
+            connector_edit_gate_id: None,
+            connector_warning: None,
+            status_message: String::new(),
+            current_file_path: None,
+            editing_page_name: None,
+            page_name_draft: String::new(),
+            custom_ic_tab: 0,
+            custom_ic_name: String::new(),
+            custom_ic_label: String::new(),
+            custom_ic_desc: String::new(),
+            custom_ic_inputs: String::new(),
+            custom_ic_outputs: String::new(),
+            custom_ic_state_bits: String::new(),
+            custom_ic_clock_pin: String::new(),
+            custom_ic_reset_pin: String::new(),
+            custom_ic_equations: Vec::new(),
+            custom_ic_json_buf: String::new(),
+            custom_ic_feedback: None,
+            last_sim_tick: Instant::now(),
+            frame_count: 0,
+            screenshot_target: None,
+            screenshot_requested: false,
+        };
+
+        assert!(app.load_circuit_from_path(&tmp_path));
+        assert_eq!(app.current_file_path, Some(tmp_path.clone()));
+        assert!(!app.sim.pages.is_empty());
+        assert!(!app.sim.pages[0].gates.is_empty());
+
+        let _ = std::fs::remove_file(&tmp_path);
     }
 }

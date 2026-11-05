@@ -948,7 +948,7 @@ impl LogicCraftApp {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("Build: v1.0.0 // x86_64")
+                        RichText::new("Build: v1.0.1 // x86_64")
                             .font(FontId::new(11.0, FontFamily::Monospace))
                             .color(p.text_secondary),
                     );
@@ -994,13 +994,13 @@ impl LogicCraftApp {
                     .show(ui, |ui| {
                         let (v_label, ch_label, arch_label, set_label) = match self.locale {
                             crate::i18n::Locale::Pt => (
-                                "VERSÃO ATUAL INSTALADA: 1.0.0",
+                                "VERSÃO ATUAL INSTALADA: 1.0.1",
                                 "CANAL DE ATUALIZAÇÃO: ESTÁVEL (OFICIAL)",
                                 "ARQUITETURA ALVO: x86_64 WINDOWS (SUBSISTEMA GUI)",
                                 "PERSISTÊNCIA DE DEFINIÇÕES: ATIVA (settings.json)",
                             ),
                             _ => (
-                                "CURRENT INSTALLED VERSION: 1.0.0",
+                                "CURRENT INSTALLED VERSION: 1.0.1",
                                 "RELEASE CHANNEL: STABLE (OFFICIAL)",
                                 "TARGET ARCHITECTURE: x86_64 WINDOWS (GUI SUBSYSTEM)",
                                 "SETTINGS PERSISTENCE: ENABLED (settings.json)",
@@ -1039,7 +1039,7 @@ impl LogicCraftApp {
                         )
                         .clicked()
                     {
-                        self.status_message = format!("LogicCraft CAD v1.0.0: {}", tr.update_status_latest);
+                        self.status_message = format!("LogicCraft CAD v1.0.1: {}", tr.update_status_latest);
                     }
 
                     if ui

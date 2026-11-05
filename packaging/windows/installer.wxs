@@ -3,7 +3,7 @@
     <Product Id="*" 
              Name="LogicCraft CAD" 
              Language="1033" 
-             Version="1.0.0" 
+             Version="1.0.1" 
              Manufacturer="Craft Anything" 
              UpgradeCode="B9F7B1C2-824A-4A73-A33D-14C7741A6732">
              
@@ -42,9 +42,9 @@
                               Advertise="yes" />
                 </File>
                 
-                <!-- File Association: .cdl -->
+                <!-- File Association: .lcc -->
                 <ProgId Id="LogicCraft.Circuit" Description="LogicCraft Circuit File" Icon="LogicCraftEXE" IconIndex="0">
-                    <Extension Id="cdl" ContentType="application/xml">
+                    <Extension Id="lcc" ContentType="application/xml">
                         <Verb Id="open" Command="Open with LogicCraft" TargetFile="LogicCraftEXE" Argument="&quot;%1&quot;" />
                     </Extension>
                 </ProgId>

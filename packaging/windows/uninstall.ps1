@@ -27,7 +27,12 @@ if (Test-Path "$DesktopDir\LogicCraft CAD.lnk") {
 }
 
 # 3. Remove Registry associations
-Remove-Item -Path "HKCU:\Software\Classes\.cdl" -Recurse -Force
+if (Test-Path "HKCU:\Software\Classes\.lcc") {
+    Remove-Item -Path "HKCU:\Software\Classes\.lcc" -Recurse -Force
+}
+if (Test-Path "HKCU:\Software\Classes\.cdl") {
+    Remove-Item -Path "HKCU:\Software\Classes\.cdl" -Recurse -Force
+}
 Remove-Item -Path "HKCU:\Software\Classes\LogicCraft.Circuit" -Recurse -Force
 Remove-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\LogicCraft" -Recurse -Force
 

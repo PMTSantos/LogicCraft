@@ -43,7 +43,7 @@ try {
         Write-Host "[*] Found Inno Setup compiler ($($iscc.Source)). Building EXE Setup..." -ForegroundColor Green
         & $iscc.Source "packaging\windows\installer.iss"
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Built target\installer\LogicCraft-Setup-1.0.0-x64.exe" -ForegroundColor Green
+            Write-Host "[SUCCESS] Built target\installer\LogicCraft-Setup-1.0.1-x64.exe" -ForegroundColor Green
         }
     } else {
         Write-Host "[-] Inno Setup (iscc.exe) not in PATH. Skipping .iss compilation." -ForegroundColor Gray
@@ -58,9 +58,9 @@ try {
         try {
             & $candle.Source -arch x64 -out "$OutputDir\installer.wixobj" "installer.wxs"
             if ($LASTEXITCODE -eq 0) {
-                & $light.Source -ext WixUIExtension -out "$OutputDir\LogicCraft-1.0.0-x64.msi" "$OutputDir\installer.wixobj"
+                & $light.Source -ext WixUIExtension -out "$OutputDir\LogicCraft-1.0.1-x64.msi" "$OutputDir\installer.wixobj"
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Host "[SUCCESS] Built target\installer\LogicCraft-1.0.0-x64.msi" -ForegroundColor Green
+                    Write-Host "[SUCCESS] Built target\installer\LogicCraft-1.0.1-x64.msi" -ForegroundColor Green
                 }
             }
         } catch {
@@ -74,7 +74,7 @@ try {
     }
 
     Write-Host "[3/4] Creating standalone Portable ZIP distribution package..." -ForegroundColor Yellow
-    $ZipDest = "$OutputDir\LogicCraft-v1.0.0-windows-x64.zip"
+    $ZipDest = "$OutputDir\LogicCraft-v1.0.1-windows-x64.zip"
     if (Test-Path $ZipDest) {
         Remove-Item $ZipDest -Force
     }
@@ -102,7 +102,7 @@ try {
 
     Compress-Archive -Path "$StageDir\*" -DestinationPath $ZipDest -Force
     Remove-Item $StageDir -Recurse -Force
-    Write-Host "[SUCCESS] Created Portable Package: target\installer\LogicCraft-v1.0.0-windows-x64.zip" -ForegroundColor Green
+    Write-Host "[SUCCESS] Created Portable Package: target\installer\LogicCraft-v1.0.1-windows-x64.zip" -ForegroundColor Green
 
     Write-Host ""
     Write-Host "========================================================" -ForegroundColor Cyan

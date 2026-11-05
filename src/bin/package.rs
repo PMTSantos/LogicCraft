@@ -71,7 +71,7 @@ fn build_windows_msi(root: &Path, out_dir: &Path) {
             println!(" [*] WiX Toolset detected. Generating MSI installer...");
             let wxs_path = root.join("packaging").join("windows").join("installer.wxs");
             let wixobj = out_dir.join("installer.wixobj");
-            let msi_out = out_dir.join("LogicCraft-1.0.0-x64.msi");
+            let msi_out = out_dir.join("LogicCraft-1.0.1-x64.msi");
 
             let c_status = Command::new("candle.exe")
                 .args(["-arch", "x64", "-out"])

@@ -7,7 +7,7 @@ use eframe::egui::{
 };
 
 use crate::canvas_renderer::{draw_mini_gate_icon, draw_undo_redo_toolbar_button};
-use crate::cdl_io::{export_cdo, import_cdl, import_cdo};
+use crate::cdl_io::{export_cdo, import_cdo};
 use crate::i18n::Locale;
 use crate::mechanics::{
     LogicState, DEFAULT_VIEW_ZOOM, MAX_TIME_STEP_MS, MINIMAP_HEIGHT, MINIMAP_WIDTH,
@@ -75,22 +75,10 @@ impl LogicCraftApp {
                         if ui.button(tr.file_open).clicked() {
                             ui.close_menu();
                             if let Some(path) = rfd::FileDialog::new()
-                                .add_filter("LogicCraft / CEDAR Circuit (*.cdl)", &["cdl", "xml"])
+                                .add_filter("LogicCraft Circuit (*.lcc, *.cdl)", &["lcc", "cdl", "xml"])
                                 .pick_file()
                             {
-                                if let Ok(txt) = std::fs::read_to_string(&path) {
-                                    self.save_undo_snapshot();
-                                    match import_cdl(&mut self.sim, &self.lib, &txt) {
-                                        Ok(()) => {
-                                            self.current_file_path = Some(path.clone());
-                                            self.status_message =
-                                                format!("Opened circuit from {}", path.display());
-                                        }
-                                        Err(e) => {
-                                            self.status_message = format!("Open error: {e}");
-                                        }
-                                    }
-                                }
+                                self.load_circuit_from_path(&path);
                             }
                         }
                         if ui.button(tr.file_save).clicked() {
@@ -306,14 +294,10 @@ impl LogicCraftApp {
                             .clicked()
                         {
                             if let Some(path) = rfd::FileDialog::new()
-                                .add_filter("LogicCraft / CEDAR Circuit (*.cdl)", &["cdl", "xml"])
+                                .add_filter("LogicCraft Circuit (*.lcc, *.cdl)", &["lcc", "cdl", "xml"])
                                 .pick_file()
                             {
-                                if let Ok(txt) = std::fs::read_to_string(&path) {
-                                    self.save_undo_snapshot();
-                                    let _ = import_cdl(&mut self.sim, &self.lib, &txt);
-                                    self.current_file_path = Some(path);
-                                }
+                                self.load_circuit_from_path(&path);
                             }
                         }
                         if crate::theme::tool_button(ui, tr.tb_save, false, p.cyan)
