@@ -1,0 +1,25 @@
+# Rust compilation artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Backup and temp files
+*.bak
+*.tmp
+*.log
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.iml
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Test/verification screenshots (keep shots directory clean)
+shots/verification*.png

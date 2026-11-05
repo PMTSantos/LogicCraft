@@ -1,0 +1,267 @@
+# LogicCraft CAD — Digital Logic Circuit Studio
+
+[![Release](https://img.shields.io/github/v/release/PMTSantos/LogicCraft?include_prereleases&style=flat-square&color=00d26a)](https://github.com/PMTSantos/LogicCraft/releases)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/PMTSantos/LogicCraft/release.yml?branch=main&style=flat-square)](https://github.com/PMTSantos/LogicCraft/actions)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-orange.svg?style=flat-square)](https://github.com/PMTSantos/LogicCraft)
+[![Rust](https://img.shields.io/badge/Rust-1.75%2B-blue.svg?style=flat-square&logo=rust)](https://www.rust-lang.org)
+
+Modern cross-platform digital logic circuit builder, 5-state logic simulator, Quine-McCluskey Karnaugh Map solver, and custom hardware specification studio written in **Rust + egui (`eframe`)**.
+
+- **Repository**: [https://github.com/PMTSantos/LogicCraft](https://github.com/PMTSantos/LogicCraft)
+- **Latest Releases**: [https://github.com/PMTSantos/LogicCraft/releases](https://github.com/PMTSantos/LogicCraft/releases)
+
+---
+
+## Table of Contents
+1. [Key Features](#key-features)
+2. [Prerequisites & System Requirements](#prerequisites--system-requirements)
+3. [Building the Application](#building-the-application)
+4. [Running the Application](#running-the-application)
+5. [Testing & Quality Assurance](#testing--quality-assurance)
+6. [Creating Windows Installers & Packages](#creating-windows-installers--packages)
+7. [Native Application Updater](#native-application-updater)
+8. [GitHub Releases & Versioning Workflow](#github-releases--versioning-workflow)
+9. [Persistent Settings](#persistent-settings)
+10. [Repository Structure](#repository-structure)
+
+---
+
+## Key Features
+
+- **5-State Logic Engine**: Accurate evaluation of digital states (`0`, `1`, `Hi-Z`, `Conflict`, `Unknown`).
+- **11 Gate Libraries**: Comprehensive IEEE US standard gate packages, switches, hex keypads, multiplexers, decoders, arithmetic units, flip-flops, registers, RAM/ROM, and custom ICs.
+- **Dynamic Minimap**: Aspect-ratio-preserving overview of the full circuit with real-time viewport tracking and instant click-to-pan navigation.
+- **Cross-Session Persistence**: Automatically remembers your language (`EN`, `PT`, `ES`, `FR`, `DE`), theme (Dark/Light), grid visibility, wire solder dots, and oscilloscope panel.
+- **Clean Windows Desktop Experience**: Configured with `#![windows_subsystem = "windows"]` — no terminal or CMD prompt window opens when launching the application.
+- **Integrated Native Updater**: Seamless in-app checking and standalone background updater (`logiccraft-updater.exe` / `update.ps1`) that safely handles executable locks and upgrades installations.
+
+---
+
+## Prerequisites & System Requirements
+
+| Tool / Requirement | Minimum Version | Notes |
+|---|---|---|
+| **Operating System** | Windows 10/11, macOS 10.15+, or Linux | Primary targets: Windows x86_64, macOS Apple Silicon / Intel, Linux x64 |
+| **Rust Toolchain** | `1.75.0` or newer | Installed via [rustup.rs](https://rustup.rs) (`cargo`, `rustc`) |
+| **Graphics Backend** | OpenGL 3.3+ or DirectX 12 / Vulkan | Glow (default) or WGPU selectable via `--glow` or `--wgpu` |
+| **WiX Toolset** *(Optional)* | 3.11+ (`candle.exe`, `light.exe`) | For generating Windows `.msi` installers |
+| **Inno Setup** *(Optional)* | 6.0+ (`iscc.exe`) | For generating Windows Setup `.exe` installers |
+| **cargo-packager** *(Optional)* | Latest | `cargo install cargo-packager --locked` for cross-platform installers |
+
+---
+
+## Building the Application
+
+### 1. Debug Build (Rapid Development)
+```powershell
+cargo build
+```
+
+### 2. Optimized Release Build
+Compiles with link-time optimization and the Windows GUI subsystem (no console window):
+```powershell
+cargo build --release
+```
+The output executable is created at:
+```
+target/release/logiccraft.exe
+```
+
+### 3. Build All Binaries
+Compiles `logiccraft.exe`, the native updater `logiccraft-updater.exe`, and the packaging utility `package.exe`:
+```powershell
+cargo build --release --bins
+```
+
+---
+
+## Running the Application
+
+### Launching with Cargo
+```powershell
+cargo run --release
+```
+
+### Command-Line Options
+```powershell
+# Set initial locale on launch (en, pt, es, fr, de)
+cargo run --release -- --lang=pt
+cargo run --release -- --lang=es
+
+# Select graphics rendering backend
+cargo run --release -- --glow      # OpenGL backend (default, broad compatibility)
+cargo run --release -- --wgpu      # WGPU DirectX 12 / Vulkan backend
+
+# Headless automated screenshot capture
+cargo run --release -- --screenshot=screenshot.png
+```
+
+---
+
+## Testing & Quality Assurance
+
+Run the comprehensive test suite:
+```powershell
+cargo test
+```
+Includes:
+- Settings serialization / deserialization round-trip tests
+- Configuration fallback validation for partial configs
+- Multi-page circuit tab management and tracking tests
+
+---
+
+## Creating Windows Installers & Packages
+
+### 1. Automated Windows Installer Build Suite (Recommended)
+This script builds release binaries and packages all Windows distribution formats into `target/installer/`:
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\build_installer.ps1
+```
+Output files in `target\installer\`:
+- `LogicCraft-v2.5.0-windows-x64.zip` — Standalone portable archive with updater and installer scripts
+- `LogicCraft-2.5.0-x64.msi` — Windows Installer package (when WiX or `cargo-packager` is installed)
+- `LogicCraft-Setup-2.5.0-x64.exe` — Inno Setup executable (when `iscc.exe` is installed)
+
+### 2. Direct User Installation Script
+Installs LogicCraft CAD directly to `%LOCALAPPDATA%\Programs\LogicCraft`, registers the `.cdl` file association, and creates Start Menu and Desktop shortcuts:
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\install.ps1
+```
+
+### 3. Uninstallation Script
+Cleans shortcuts, registry file associations, and application binaries:
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\uninstall.ps1
+```
+
+---
+
+## Native Application Updater
+
+LogicCraft CAD provides three complementary updater workflows:
+
+### 1. Standalone Native Binary (`logiccraft-updater.exe`)
+Built with `cargo build --release --bin logiccraft-updater`.
+
+```powershell
+# Interactive mode (checks status, backs up old binary, applies update, launches app)
+target\release\logiccraft-updater.exe
+
+# Check update status without modifying any files
+target\release\logiccraft-updater.exe --check
+
+# Silent automated update (for automation or scripts)
+target\release\logiccraft-updater.exe --silent
+
+# Target a custom installation directory
+target\release\logiccraft-updater.exe --dir "C:\Custom\LogicCraft"
+
+# Launch application after update
+target\release\logiccraft-updater.exe --launch
+```
+
+### 2. Windows PowerShell Updater Script (`update.ps1`)
+Safely terminates running `logiccraft.exe` processes to release file locks, creates a backup in `backup/`, copies updated binaries and mechanics specifications, verifies user settings, and restarts the app:
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\update.ps1
+```
+
+Options:
+```powershell
+# Update without relaunching the app
+powershell -ExecutionPolicy Bypass -File packaging\windows\update.ps1 -NoLaunch
+
+# Update a custom directory
+powershell -ExecutionPolicy Bypass -File packaging\windows\update.ps1 -InstallDir "C:\Custom\LogicCraft"
+```
+
+### 3. In-App Updater Modal
+- Open the top menu: **Help** → **Check for Updates...** (or in Portuguese: **Ajuda** → **Verificar Atualizações...**).
+- Or open **Help** → **About LogicCraft** and click **[ 🔄 Check for Updates / Atualizações ]**.
+- From this window, users can verify version status, launch the native updater, open GitHub Releases, or view the installation folder.
+
+---
+
+## GitHub Releases & Versioning Workflow
+
+The repository is configured with automated GitHub Actions workflows:
+
+### Creating a New Version & GitHub Release
+1. Update the version in `Cargo.toml` (e.g. `2.5.0`).
+2. Commit and tag the release:
+   ```powershell
+   git add .
+   git commit -m "Release v2.5.0: Window console fix, persistent settings, minimap overhaul, native updater"
+   git tag -a v2.5.0 -m "LogicCraft CAD v2.5.0"
+   git push origin main
+   git push origin v2.5.0
+   ```
+3. The GitHub Actions release workflow (`.github/workflows/release.yml`) automatically triggers on the `v*` tag:
+   - Builds optimized release binaries on `windows-latest`
+   - Generates the portable ZIP and installer packages
+   - Publishes the GitHub Release with downloadable release assets (`logiccraft.exe`, `logiccraft-updater.exe`, `LogicCraft-v2.5.0-windows-x64.zip`, `.msi`)
+
+---
+
+## Persistent Settings
+
+User preferences are automatically preserved across application restarts in:
+- **Windows**: `%APPDATA%\LogicCraft\settings.json`
+- **macOS**: `~/Library/Application Support/LogicCraft/settings.json`
+- **Linux**: `~/.config/logiccraft/settings.json`
+
+### Persisted Options:
+- **Language / Locale**: English (`En`), Português (`Pt`), Español (`Es`), Français (`Fr`), Deutsch (`De`)
+- **Theme**: Dark mode or Light mode
+- **Gridlines**: Visible or Hidden
+- **Solder Dots**: Wire connection terminals visible or hidden
+- **Oscilloscope**: Technical logic analyzer visible or hidden
+- **Image Exporter**: Canvas grid and color preferences
+
+---
+
+## Repository Structure
+
+```
+app/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                # Automated CI test and check workflow
+│       └── release.yml           # Automated release and artifact publishing
+├── .gitignore                    # Git ignore specifications
+├── Cargo.toml                    # Package manifest & metadata
+├── build.rs                      # Windows resource compiler (embeds icon and metadata)
+├── README.md                     # Documentation and build instructions
+├── src/
+│   ├── main.rs                   # Entrypoint (GUI subsystem, settings loader, app loop)
+│   ├── settings.rs               # AppSettings model (load/save/persistence in %APPDATA%)
+│   ├── i18n.rs                   # Localization engine (EN, PT, ES, FR, DE strings)
+│   ├── ui_dialogs.rs             # Dialog windows (About, Updater, K-Map, RAM/ROM)
+│   ├── ui_panels.rs              # Menus, toolbars, and dynamic minimap renderer
+│   ├── canvas_view.rs            # Circuit canvas and interactive workspace
+│   ├── canvas_renderer.rs        # Vector gate symbols, pins, and IC packages
+│   ├── library.rs                # 11 component libraries & pin definitions
+│   ├── simulator.rs              # 5-state digital logic simulation engine
+│   ├── custom_component.rs       # Custom IC JSON specification engine
+│   ├── kmap.rs                   # Quine-McCluskey K-Map solver & truth tables
+│   ├── image_export.rs           # PNG / BMP circuit export engine
+│   ├── cdl_io.rs                 # Circuit (.cdl), memory (.cdm), and trace (.cdo) I/O
+│   ├── mechanics.rs              # 5-state types and visual layout constants
+│   ├── theme.rs                  # Industrial color palette and styling
+│   └── bin/
+│       ├── updater.rs            # Standalone native updater binary (`logiccraft-updater`)
+│       └── package.rs            # Multiplatform packaging automation tool
+├── packaging/
+│   ├── assets/                   # Application icons (icon.ico, icon.png)
+│   ├── windows/
+│   │   ├── install.ps1           # User-level installation script
+│   │   ├── update.ps1            # Standalone update script
+│   │   ├── uninstall.ps1         # Complete cleanup script
+│   │   ├── build_installer.ps1   # Installer compilation suite
+│   │   ├── installer.iss         # Inno Setup compilation script
+│   │   └── installer.wxs         # WiX Toolset MSI definition
+│   └── macos/                    # macOS bundle and packaging scripts
+└── shots/                        # Verification screenshots
+```

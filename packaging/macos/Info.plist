@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>LogicCraft CAD</string>
+    <key>CFBundleExecutable</key>
+    <string>logiccraft</string>
+    <key>CFBundleIconFile</key>
+    <string>icon.png</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.craftanything.logiccraft</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>LogicCraft</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.5.0</string>
+    <key>CFBundleVersion</key>
+    <string>2.5.0</string>
+    <key>CSResourcesFileMapped</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 Craft Anything. All rights reserved.</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>LogicCraft Circuit File</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>cdl</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="*" 
+             Name="LogicCraft CAD" 
+             Language="1033" 
+             Version="2.5.0" 
+             Manufacturer="Craft Anything" 
+             UpgradeCode="B9F7B1C2-824A-4A73-A33D-14C7741A6732">
+             
+        <Package InstallerVersion="500" 
+                 Compressed="yes" 
+                 InstallScope="perMachine" 
+                 Platform="x64" 
+                 Description="LogicCraft - Digital Logic Circuit Studio" />
+
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+        <MediaTemplate EmbedCab="yes" />
+
+        <Icon Id="AppIcon.ico" SourceFile="..\assets\icon.ico" />
+        <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="INSTALLFOLDER" Name="LogicCraft" />
+            </Directory>
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="LogicCraft CAD" />
+            </Directory>
+            <Directory Id="DesktopFolder" Name="Desktop" />
+        </Directory>
+
+        <DirectoryRef Id="INSTALLFOLDER">
+            <Component Id="MainExecutable" Guid="3E4D6852-64B0-4A8E-921B-F6484D34251B" Win64="yes">
+                <File Id="LogicCraftEXE" 
+                      Source="..\..\target\release\logiccraft.exe" 
+                      KeyPath="yes">
+                    <Shortcut Id="DesktopShortcut" 
+                              Directory="DesktopFolder" 
+                              Name="LogicCraft CAD" 
+                              WorkingDirectory="INSTALLFOLDER" 
+                              Icon="AppIcon.ico" 
+                              Advertise="yes" />
+                </File>
+                
+                <!-- File Association: .cdl -->
+                <ProgId Id="LogicCraft.Circuit" Description="LogicCraft Circuit File" Icon="LogicCraftEXE" IconIndex="0">
+                    <Extension Id="cdl" ContentType="application/xml">
+                        <Verb Id="open" Command="Open with LogicCraft" Argument="&quot;%1&quot;" />
+                    </Extension>
+                </ProgId>
+            </Component>
+
+            <Component Id="AppIconComponent" Guid="D27CA915-BC6F-4EE1-B071-EF3F9F588B42" Win64="yes">
+                <File Id="AppIconFile" Source="..\assets\icon.ico" KeyPath="yes" />
+            </Component>
+        </DirectoryRef>
+
+        <DirectoryRef Id="ApplicationProgramsFolder">
+            <Component Id="ApplicationShortcut" Guid="7C4DE46A-FF04-4F54-97F7-CC2BE6AC8D87" Win64="yes">
+                <Shortcut Id="ApplicationStartMenuShortcut" 
+                          Name="LogicCraft CAD" 
+                          Description="Digital Logic Circuit Studio" 
+                          Target="[#LogicCraftEXE]" 
+                          WorkingDirectory="INSTALLFOLDER" 
+                          Icon="AppIcon.ico" />
+                <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+                <RegistryValue Root="HKCU" 
+                               Key="Software\CraftAnything\LogicCraft" 
+                               Name="installed" 
+                               Type="integer" 
+                               Value="1" 
+                               KeyPath="yes" />
+            </Component>
+        </DirectoryRef>
+
+        <Feature Id="MainApplication" Title="LogicCraft CAD" Level="1">
+            <ComponentRef Id="MainExecutable" />
+            <ComponentRef Id="AppIconComponent" />
+            <ComponentRef Id="ApplicationShortcut" />
+        </Feature>
+    </Product>
+</Wix>

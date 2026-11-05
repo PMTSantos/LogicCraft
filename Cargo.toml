@@ -1,0 +1,59 @@
+[package]
+name = "logiccraft"
+version = "2.5.0"
+edition = "2021"
+default-run = "logiccraft"
+description = "Modern cross-platform digital logic circuit builder and simulator in Rust"
+homepage = "https://github.com/PMTSantos/LogicCraft"
+repository = "https://github.com/PMTSantos/LogicCraft"
+
+[dependencies]
+eframe = { version = "0.27", features = ["glow", "wgpu"] }
+egui = "0.27"
+image = { version = "0.24", default-features = false, features = ["png"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rfd = "0.14"
+
+[build-dependencies]
+winres = "0.1"
+
+[[bin]]
+name = "logiccraft"
+path = "src/main.rs"
+
+[[bin]]
+name = "logiccraft-updater"
+path = "src/bin/updater.rs"
+
+[[bin]]
+name = "package"
+path = "src/bin/package.rs"
+
+[package.metadata.packager]
+name = "logiccraft"
+product-name = "LogicCraft CAD"
+identifier = "com.craftanything.logiccraft"
+version = "2.5.0"
+category = "DeveloperTool"
+authors = ["Craft Anything"]
+description = "Modern digital logic circuit builder and simulator in Rust"
+homepage = "https://github.com/PMTSantos/LogicCraft"
+icons = ["packaging/assets/icon.png", "packaging/assets/icon.ico"]
+before-packaging-command = "cargo build --release"
+
+[package.metadata.bundle]
+name = "LogicCraft CAD"
+identifier = "com.craftanything.logiccraft"
+icon = ["packaging/assets/icon.png", "packaging/assets/icon.ico"]
+version = "2.5.0"
+copyright = "Craft Anything"
+category = "DeveloperTool"
+short_description = "Digital Logic Circuit Studio"
+
+[package.metadata.wix]
+upgrade-guid = "B9F7B1C2-824A-4A73-A33D-14C7741A6732"
+path-guid = "3E4D6852-64B0-4A8E-921B-F6484D34251B"
+app-name = "LogicCraft CAD"
+manufacturer = "Craft Anything"
+

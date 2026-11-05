@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "values": [
+    {
+      "name": "default_frame_width",
+      "group": "window",
+      "value": 600,
+      "unit": "px",
+      "source": "function 0x44f9a0"
+    },
+    {
+      "name": "default_frame_height",
+      "group": "window",
+      "value": 600,
+      "unit": "px",
+      "source": "function 0x44f9a0"
+    },
+    {
+      "name": "initial_frame_width",
+      "group": "window",
+      "value": 1800,
+      "unit": "px",
+      "source": "function 0x4512b0"
+    },
+    {
+      "name": "initial_frame_height",
+      "group": "window",
+      "value": 900,
+      "unit": "px",
+      "source": "function 0x4512b0"
+    },
+    {
+      "name": "default_frame_left",
+      "group": "window",
+      "value": 20,
+      "unit": "px",
+      "source": "function 0x44f9a0"
+    },
+    {
+      "name": "default_frame_top",
+      "group": "window",
+      "value": 20,
+      "unit": "px",
+      "source": "function 0x44f9a0"
+    },
+    {
+      "name": "default_time_step_ms",
+      "group": "simulation",
+      "value": 25,
+      "unit": "ms",
+      "source": "function 0x44f9a0"
+    },
+    {
+      "name": "min_time_step_ms",
+      "group": "simulation",
+      "value": 1,
+      "unit": "ms",
+      "source": "function 0x4512b0"
+    },
+    {
+      "name": "max_time_step_ms",
+      "group": "simulation",
+      "value": 500,
+      "unit": "ms",
+      "source": "function 0x4512b0"
+    },
+    {
+      "name": "default_refresh_rate_ms",
+      "group": "rendering",
+      "value": 60,
+      "unit": "ms",
+      "source": "function 0x44f9a0"
+    },
+    {
+      "name": "wire_conn_radius",
+      "group": "rendering",
+      "value": 0.18,
+      "unit": "world",
+      "source": "function 0x44f9a0"
+    },
+    {
+      "name": "wire_conn_visible",
+      "group": "rendering",
+      "value": true,
+      "source": "function 0x44f9a0"
+    },
+    {
+      "name": "gridline_visible",
+      "group": "rendering",
+      "value": true,
+      "source": "function 0x44f9a0"
+    },
+    {
+      "name": "grid_spacing",
+      "group": "canvas",
+      "value": 0.5,
+      "unit": "world",
+      "source": "function 0x420b50"
+    },
+    {
+      "name": "default_view_zoom",
+      "group": "canvas",
+      "value": 0.08,
+      "unit": "world/px",
+      "source": "function 0x4471f0"
+    },
+    {
+      "name": "minimap_width",
+      "group": "window",
+      "value": 130,
+      "unit": "px",
+      "source": "function 0x4512b0"
+    },
+    {
+      "name": "minimap_height",
+      "group": "window",
+      "value": 100,
+      "unit": "px",
+      "source": "function 0x4512b0"
+    },
+    {
+      "name": "oscope_width",
+      "group": "oscope",
+      "value": 800,
+      "unit": "px",
+      "source": "function 0x45c180"
+    },
+    {
+      "name": "oscope_height",
+      "group": "oscope",
+      "value": 250,
+      "unit": "px",
+      "source": "function 0x45c180"
+    },
+    {
+      "name": "state_zero",
+      "group": "logic",
+      "value": 0,
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "state_one",
+      "group": "logic",
+      "value": 1,
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "state_hi_z",
+      "group": "logic",
+      "value": 2,
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "state_conflict",
+      "group": "logic",
+      "value": 3,
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "state_unknown",
+      "group": "logic",
+      "value": 4,
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "wire_hi_z_green",
+      "group": "rendering",
+      "value": 0.78,
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "wire_unknown_rg",
+      "group": "rendering",
+      "value": 0.3,
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "single_wire_width",
+      "group": "rendering",
+      "value": 1.0,
+      "unit": "px",
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "bus_wire_width",
+      "group": "rendering",
+      "value": 4.0,
+      "unit": "px",
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "default_gate_delay",
+      "group": "simulation",
+      "value": 1,
+      "unit": "steps",
+      "source": "function 0x481040"
+    },
+    {
+      "name": "default_clock_half_cycle",
+      "group": "simulation",
+      "value": 5,
+      "unit": "steps",
+      "source": "function 0x4813e0"
+    },
+    {
+      "name": "solder_dot_angle_step_deg",
+      "group": "rendering",
+      "value": 30,
+      "unit": "deg",
+      "source": "function 0x43ad70"
+    },
+    {
+      "name": "oscope_grid_step_x",
+      "group": "oscope",
+      "value": 20,
+      "unit": "steps",
+      "source": "function 0x45a150"
+    },
+    {
+      "name": "oscope_trace_length",
+      "group": "oscope",
+      "value": 180,
+      "unit": "steps",
+      "source": "function 0x45a150"
+    }
+  ]
+}
