@@ -120,9 +120,9 @@ This script builds release binaries and packages all Windows distribution format
 powershell -ExecutionPolicy Bypass -File packaging\windows\build_installer.ps1
 ```
 Output files in `target\installer\`:
-- `LogicCraft-v2.5.0-windows-x64.zip` — Standalone portable archive with updater and installer scripts
-- `LogicCraft-2.5.0-x64.msi` — Windows Installer package (when WiX or `cargo-packager` is installed)
-- `LogicCraft-Setup-2.5.0-x64.exe` — Inno Setup executable (when `iscc.exe` is installed)
+- `LogicCraft-v1.0.0-windows-x64.zip` — Standalone portable archive with updater and installer scripts
+- `LogicCraft-1.0.0-x64.msi` — Windows Installer package (when WiX or `cargo-packager` is installed)
+- `LogicCraft-Setup-1.0.0-x64.exe` — Inno Setup executable (when `iscc.exe` is installed)
 
 ### 2. Direct User Installation Script
 Installs LogicCraft CAD directly to `%LOCALAPPDATA%\Programs\LogicCraft`, registers the `.cdl` file association, and creates Start Menu and Desktop shortcuts:
@@ -189,19 +189,19 @@ powershell -ExecutionPolicy Bypass -File packaging\windows\update.ps1 -InstallDi
 The repository is configured with automated GitHub Actions workflows:
 
 ### Creating a New Version & GitHub Release
-1. Update the version in `Cargo.toml` (e.g. `2.5.0`).
+1. Update the version in `Cargo.toml` (e.g. `1.0.0`, `1.1.0`).
 2. Commit and tag the release:
    ```powershell
    git add .
-   git commit -m "Release v2.5.0: Window console fix, persistent settings, minimap overhaul, native updater"
-   git tag -a v2.5.0 -m "LogicCraft CAD v2.5.0"
+   git commit -m "Release v1.0.0: LogicCraft CAD initial release"
+   git tag -a v1.0.0 -m "LogicCraft CAD v1.0.0"
    git push origin main
-   git push origin v2.5.0
+   git push origin v1.0.0
    ```
 3. The GitHub Actions release workflow (`.github/workflows/release.yml`) automatically triggers on the `v*` tag:
    - Builds optimized release binaries on `windows-latest`
    - Generates the portable ZIP and installer packages
-   - Publishes the GitHub Release with downloadable release assets (`logiccraft.exe`, `logiccraft-updater.exe`, `LogicCraft-v2.5.0-windows-x64.zip`, `.msi`)
+   - Publishes the GitHub Release with downloadable release assets (`logiccraft.exe`, `logiccraft-updater.exe`, `LogicCraft-v1.0.0-windows-x64.zip`, `.msi`)
 
 ---
 

@@ -30,7 +30,7 @@ try {
         Write-Host "[*] Found Inno Setup compiler ($($iscc.Source)). Building EXE Setup..." -ForegroundColor Green
         & $iscc.Source "packaging\windows\installer.iss"
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Built target\installer\LogicCraft-Setup-2.5.0-x64.exe" -ForegroundColor Green
+            Write-Host "[SUCCESS] Built target\installer\LogicCraft-Setup-1.0.0-x64.exe" -ForegroundColor Green
         }
     } else {
         Write-Host "[-] Inno Setup (iscc.exe) not in PATH. Skipping .iss compilation." -ForegroundColor Gray
@@ -42,16 +42,16 @@ try {
     if ($candle -and $light) {
         Write-Host "[*] Found WiX Toolset. Building MSI Installer..." -ForegroundColor Green
         & $candle.Source -arch x64 -out "$OutputDir\installer.wixobj" "packaging\windows\installer.wxs"
-        & $light.Source -ext WixUIExtension -out "$OutputDir\LogicCraft-2.5.0-x64.msi" "$OutputDir\installer.wixobj"
+        & $light.Source -ext WixUIExtension -out "$OutputDir\LogicCraft-1.0.0-x64.msi" "$OutputDir\installer.wixobj"
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Built target\installer\LogicCraft-2.5.0-x64.msi" -ForegroundColor Green
+            Write-Host "[SUCCESS] Built target\installer\LogicCraft-1.0.0-x64.msi" -ForegroundColor Green
         }
     } else {
         Write-Host "[-] WiX Toolset (candle.exe / light.exe) not in PATH. Skipping .msi compilation." -ForegroundColor Gray
     }
 
     Write-Host "[3/4] Creating standalone Portable ZIP distribution package..." -ForegroundColor Yellow
-    $ZipDest = "$OutputDir\LogicCraft-v2.5.0-windows-x64.zip"
+    $ZipDest = "$OutputDir\LogicCraft-v1.0.0-windows-x64.zip"
     if (Test-Path $ZipDest) {
         Remove-Item $ZipDest -Force
     }
@@ -79,7 +79,7 @@ try {
 
     Compress-Archive -Path "$StageDir\*" -DestinationPath $ZipDest -Force
     Remove-Item $StageDir -Recurse -Force
-    Write-Host "[SUCCESS] Created Portable Package: target\installer\LogicCraft-v2.5.0-windows-x64.zip" -ForegroundColor Green
+    Write-Host "[SUCCESS] Created Portable Package: target\installer\LogicCraft-v1.0.0-windows-x64.zip" -ForegroundColor Green
 
     Write-Host ""
     Write-Host "========================================================" -ForegroundColor Cyan

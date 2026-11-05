@@ -918,17 +918,29 @@ impl LogicCraftApp {
                         .color(p.text_secondary),
                 );
                 ui.separator();
-                for bullet in [
-                    "• 11 COMPONENT LIBRARIES (GATES, CONNECTORS, I/O, MUX/DEC, ARITHMETIC, FF, REG, MEMORY, CHIPS, CUSTOM)",
-                    "• DUAL-SCOPE JUNCTIONS: 'FROM' & 'TO' TAGS WITH SHARED (CROSS-PAGE) AND LOCAL (PAGE-ONLY) SCOPES",
-                    "• ORTHOGONAL WIRE ENGINE: SOLDER JUNCTIONS, DYNAMIC WIRE SEGMENT RE-ROUTING, GROUP DRAG",
-                    "• TECHNICAL ANALYSIS: 180-SAMPLE MULTI-CHANNEL LOGIC ANALYZER / OSCILLOSCOPE",
-                    "• LOGIC SYNTHESIS: TRUTH TABLE & QUINE-MCCLUSKEY KARNAUGH MAP (K-MAP) SOLVER WITH CANVAS CARDS",
-                    "• CUSTOM IC & AI STUDIO: JSON / LPOS HARDWARE SPECIFICATION ENGINE WITH AUTO-VERIFICATION",
-                    "• RUNTIME LOCALIZATION: EN (ENGLISH), PT (PORTUGUÊS), ES (ESPAÑOL), FR (FRANÇAIS), DE (DEUTSCH)",
-                ] {
+                let bullets: &[&str] = match self.locale {
+                    crate::i18n::Locale::Pt => &[
+                        "• 11 BIBLIOTECAS DE COMPONENTES (PORTAS, LIGAÇÕES, E/S, MUX/DESCOD, ARITMÉTICA, FLIP-FLOPS, REGISTOS, MEMÓRIA, CI, PERSONALIZADOS)",
+                        "• LIGAÇÕES DE DUPLO ÂMBITO: TAGS 'FROM' & 'TO' COM ÂMBITO PARTILHADO (GLOBAL) E LOCAL (PÁGINA)",
+                        "• MOTOR DE FIOS ORTOGONAIS: PONTOS DE SOLDA, REORDENAÇÃO DINÂMICA DE SEGMENTOS E ARRASTO EM GRUPO",
+                        "• ANÁLISE TÉCNICA: ANALISADOR LÓGICO / OSCILOSCÓPIO MULTICANAL COM 180 AMOSTRAS",
+                        "• SÍNTESE LÓGICA: TABELA DE VERDADE E MAPA DE KARNAUGH (QUINE-MCCLUSKEY) COM CARTÕES NO ESQUEMA",
+                        "• ESTÚDIO DE COMPONENTES E IA: MOTOR DE HARDWARE JSON / LPOS COM VERIFICAÇÃO AUTOMÁTICA",
+                        "• IDIOMAS SUPORTADOS: EN (INGLÊS), PT (PORTUGUÊS DE PORTUGAL), ES (ESPANHOL), FR (FRANCÊS), DE (ALEMÃO)",
+                    ],
+                    _ => &[
+                        "• 11 COMPONENT LIBRARIES (GATES, CONNECTORS, I/O, MUX/DEC, ARITHMETIC, FF, REG, MEMORY, CHIPS, CUSTOM)",
+                        "• DUAL-SCOPE JUNCTIONS: 'FROM' & 'TO' TAGS WITH SHARED (CROSS-PAGE) AND LOCAL (PAGE-ONLY) SCOPES",
+                        "• ORTHOGONAL WIRE ENGINE: SOLDER JUNCTIONS, DYNAMIC WIRE SEGMENT RE-ROUTING, GROUP DRAG",
+                        "• TECHNICAL ANALYSIS: 180-SAMPLE MULTI-CHANNEL LOGIC ANALYZER / OSCILLOSCOPE",
+                        "• LOGIC SYNTHESIS: TRUTH TABLE & QUINE-MCCLUSKEY KARNAUGH MAP (K-MAP) SOLVER WITH CANVAS CARDS",
+                        "• CUSTOM IC & AI STUDIO: JSON / LPOS HARDWARE SPECIFICATION ENGINE WITH AUTO-VERIFICATION",
+                        "• RUNTIME LOCALIZATION: EN (ENGLISH), PT (PORTUGUÊS), ES (ESPAÑOL), FR (FRANÇAIS), DE (DEUTSCH)",
+                    ],
+                };
+                for bullet in bullets {
                     ui.label(
-                        RichText::new(bullet)
+                        RichText::new(*bullet)
                             .font(FontId::new(10.5, FontFamily::Monospace))
                             .color(p.text_primary),
                     );
@@ -936,7 +948,7 @@ impl LogicCraftApp {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("Build: v2.5.0 // x86_64")
+                        RichText::new("Build: v1.0.0 // x86_64")
                             .font(FontId::new(11.0, FontFamily::Monospace))
                             .color(p.text_secondary),
                     );
@@ -980,23 +992,37 @@ impl LogicCraftApp {
                     .inner_margin(egui::Margin::same(8.0))
                     .stroke(Stroke::new(1.0, p.border_secondary))
                     .show(ui, |ui| {
+                        let (v_label, ch_label, arch_label, set_label) = match self.locale {
+                            crate::i18n::Locale::Pt => (
+                                "VERSÃO ATUAL INSTALADA: 1.0.0",
+                                "CANAL DE ATUALIZAÇÃO: ESTÁVEL (OFICIAL)",
+                                "ARQUITETURA ALVO: x86_64 WINDOWS (SUBSISTEMA GUI)",
+                                "PERSISTÊNCIA DE DEFINIÇÕES: ATIVA (settings.json)",
+                            ),
+                            _ => (
+                                "CURRENT INSTALLED VERSION: 1.0.0",
+                                "RELEASE CHANNEL: STABLE (OFFICIAL)",
+                                "TARGET ARCHITECTURE: x86_64 WINDOWS (GUI SUBSYSTEM)",
+                                "SETTINGS PERSISTENCE: ENABLED (settings.json)",
+                            ),
+                        };
                         ui.label(
-                            RichText::new("CURRENT INSTALLED VERSION: 2.5.0")
+                            RichText::new(v_label)
                                 .font(FontId::new(11.0, FontFamily::Monospace))
                                 .color(p.text_primary),
                         );
                         ui.label(
-                            RichText::new("RELEASE CHANNEL: STABLE (OFFICIAL)")
+                            RichText::new(ch_label)
                                 .font(FontId::new(10.5, FontFamily::Monospace))
                                 .color(p.text_secondary),
                         );
                         ui.label(
-                            RichText::new("TARGET ARCHITECTURE: x86_64 WINDOWS (GUI SUBSYSTEM)")
+                            RichText::new(arch_label)
                                 .font(FontId::new(10.5, FontFamily::Monospace))
                                 .color(p.text_secondary),
                         );
                         ui.label(
-                            RichText::new("SETTINGS PERSISTENCE: ENABLED (settings.json)")
+                            RichText::new(set_label)
                                 .font(FontId::new(10.5, FontFamily::Monospace))
                                 .color(p.text_secondary),
                         );
@@ -1013,7 +1039,7 @@ impl LogicCraftApp {
                         )
                         .clicked()
                     {
-                        self.status_message = format!("LogicCraft CAD v2.5.0: {}", tr.update_status_latest);
+                        self.status_message = format!("LogicCraft CAD v1.0.0: {}", tr.update_status_latest);
                     }
 
                     if ui
