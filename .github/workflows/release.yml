@@ -4,18 +4,27 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag to release (e.g. v1.0.0)'
+        required: false
+        default: 'v1.0.0'
 
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    name: Build & Release LogicCraft CAD
+  release-windows:
+    name: Windows Installers (EXE, MSI, ZIP)
     runs-on: windows-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -39,29 +48,103 @@ jobs:
       - name: Run Test Suite
         run: cargo test --release
 
-      - name: Build Packaging Suite
+      - name: Build Packaging Suite (Inno Setup & WiX & ZIP)
         shell: pwsh
         run: .\packaging\windows\build_installer.ps1
 
-      - name: Extract Tag Version
-        id: get_version
-        shell: pwsh
-        run: |
-          $tag = $env:GITHUB_REF_NAME
-          Write-Output "VERSION=$tag" >> $env:GITHUB_ENV
-
-      - name: Publish GitHub Release
+      - name: Publish Windows Assets to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: LogicCraft CAD ${{ env.VERSION }}
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: LogicCraft CAD ${{ github.event.inputs.tag_name || github.ref_name }}
           draft: false
           prerelease: false
           generate_release_notes: true
           files: |
+            target/installer/*.exe
+            target/installer/*.msi
+            target/installer/*.zip
             target/release/logiccraft.exe
             target/release/logiccraft-updater.exe
-            target/installer/LogicCraft-*-windows-x64.zip
-            target/installer/*.msi
-            target/installer/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-macos:
+    name: macOS Installers (DMG, PKG, Tarball)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Compile Release Binaries
+        run: cargo build --release --bins
+
+      - name: Build macOS DMG and PKG Installers
+        run: |
+          chmod +x packaging/macos/*.sh
+          bash packaging/macos/build_dmg.sh
+          bash packaging/macos/build_pkg.sh
+
+      - name: Publish macOS Assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: LogicCraft CAD ${{ github.event.inputs.tag_name || github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            target/installer/*.dmg
+            target/installer/*.pkg
+            target/installer/*-macos.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-linux:
+    name: Linux Installers (DEB, Tarball)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libssl-dev \
+            libfontconfig1-dev \
+            libgtk-3-dev \
+            libasound2-dev
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Compile Release Binaries
+        run: cargo build --release --bins
+
+      - name: Build Linux DEB and Portable Tarball
+        run: |
+          chmod +x packaging/linux/*.sh
+          bash packaging/linux/build_deb.sh
+          bash packaging/linux/build_tarball.sh
+
+      - name: Publish Linux Assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: LogicCraft CAD ${{ github.event.inputs.tag_name || github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            target/installer/*.deb
+            target/installer/*-linux-*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

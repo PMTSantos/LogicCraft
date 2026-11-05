@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # LogicCraft CAD - macOS DMG Installer Builder
-; Generates target/installer/LogicCraft-1.0.0.dmg with /Applications symlink
+# Generates target/installer/LogicCraft-1.0.0.dmg with /Applications symlink
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

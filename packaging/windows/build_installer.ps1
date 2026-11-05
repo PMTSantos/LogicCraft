@@ -26,6 +26,19 @@ try {
 
     # Check Inno Setup Compiler (iscc.exe)
     $iscc = Get-Command "iscc.exe" -ErrorAction SilentlyContinue
+    if (-not $iscc) {
+        $candidatePaths = @(
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\iscc.exe",
+            "C:\Program Files (x86)\Inno Setup 6\iscc.exe",
+            "C:\Program Files\Inno Setup 6\iscc.exe"
+        )
+        foreach ($cp in $candidatePaths) {
+            if (Test-Path $cp) {
+                $iscc = [PSCustomObject]@{ Source = $cp }
+                break
+            }
+        }
+    }
     if ($iscc) {
         Write-Host "[*] Found Inno Setup compiler ($($iscc.Source)). Building EXE Setup..." -ForegroundColor Green
         & $iscc.Source "packaging\windows\installer.iss"
@@ -42,9 +55,11 @@ try {
     if ($candle -and $light) {
         Write-Host "[*] Found WiX Toolset. Building MSI Installer..." -ForegroundColor Green
         & $candle.Source -arch x64 -out "$OutputDir\installer.wixobj" "packaging\windows\installer.wxs"
-        & $light.Source -ext WixUIExtension -out "$OutputDir\LogicCraft-1.0.0-x64.msi" "$OutputDir\installer.wixobj"
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Built target\installer\LogicCraft-1.0.0-x64.msi" -ForegroundColor Green
+            & $light.Source -ext WixUIExtension -out "$OutputDir\LogicCraft-1.0.0-x64.msi" "$OutputDir\installer.wixobj"
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "[SUCCESS] Built target\installer\LogicCraft-1.0.0-x64.msi" -ForegroundColor Green
+            }
         }
     } else {
         Write-Host "[-] WiX Toolset (candle.exe / light.exe) not in PATH. Skipping .msi compilation." -ForegroundColor Gray

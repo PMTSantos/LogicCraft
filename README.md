@@ -138,6 +138,47 @@ powershell -ExecutionPolicy Bypass -File packaging\windows\uninstall.ps1
 
 ---
 
+## Creating macOS Installers & Packages
+
+### 1. macOS DMG Disk Image (`.dmg`)
+Builds the standalone macOS `.app` bundle with icon conversion and generates a drag-and-drop DMG:
+```bash
+bash packaging/macos/build_dmg.sh
+```
+Output: `target/installer/LogicCraft-1.0.0.dmg`
+
+### 2. macOS Component Package (`.pkg`)
+Generates an Apple installer package configured for `/Applications`:
+```bash
+bash packaging/macos/build_pkg.sh
+```
+Output: `target/installer/LogicCraft-1.0.0.pkg` (or fallback `LogicCraft-v1.0.0-macos.tar.gz`)
+
+---
+
+## Creating Linux Installers & Packages
+
+### 1. Debian / Ubuntu Package (`.deb`)
+Packages the binaries, `.desktop` launcher, and high-resolution icons into a native Debian/Ubuntu package:
+```bash
+bash packaging/linux/build_deb.sh
+```
+Output: `target/installer/logiccraft_1.0.0_amd64.deb`
+
+To install:
+```bash
+sudo dpkg -i target/installer/logiccraft_1.0.0_amd64.deb
+```
+
+### 2. Standalone Linux Portable Tarball (`.tar.gz`)
+Generates a portable archive with standalone executable, desktop launcher, and user `install.sh`:
+```bash
+bash packaging/linux/build_tarball.sh
+```
+Output: `target/installer/LogicCraft-v1.0.0-linux-x64.tar.gz`
+
+---
+
 ## Native Application Updater
 
 LogicCraft CAD provides three complementary updater workflows:

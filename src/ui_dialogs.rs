@@ -1093,6 +1093,14 @@ impl LogicCraftApp {
                         let _ = std::process::Command::new("cmd")
                             .args(["/c", "start", "", "https://github.com/PMTSantos/LogicCraft/releases"])
                             .spawn();
+                        #[cfg(target_os = "macos")]
+                        let _ = std::process::Command::new("open")
+                            .arg("https://github.com/PMTSantos/LogicCraft/releases")
+                            .spawn();
+                        #[cfg(target_os = "linux")]
+                        let _ = std::process::Command::new("xdg-open")
+                            .arg("https://github.com/PMTSantos/LogicCraft/releases")
+                            .spawn();
                     }
 
                     if ui
@@ -1103,14 +1111,16 @@ impl LogicCraftApp {
                         )
                         .clicked()
                     {
+                        let app_dir = std::env::current_exe()
+                            .ok()
+                            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                            .unwrap_or_else(|| std::path::PathBuf::from("."));
                         #[cfg(windows)]
-                        {
-                            let app_dir = std::env::current_exe()
-                                .ok()
-                                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-                                .unwrap_or_else(|| std::path::PathBuf::from("."));
-                            let _ = std::process::Command::new("explorer").arg(app_dir).spawn();
-                        }
+                        let _ = std::process::Command::new("explorer").arg(app_dir).spawn();
+                        #[cfg(target_os = "macos")]
+                        let _ = std::process::Command::new("open").arg(app_dir).spawn();
+                        #[cfg(target_os = "linux")]
+                        let _ = std::process::Command::new("xdg-open").arg(app_dir).spawn();
                     }
                 });
             });

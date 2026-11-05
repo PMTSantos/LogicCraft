@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=LogicCraft CAD
+Comment=Modern digital logic circuit builder and simulator
+Exec=logiccraft %F
+Icon=logiccraft
+Terminal=false
+Type=Application
+Categories=Development;Engineering;Education;
+MimeType=application/x-cdl;
+StartupWMClass=logiccraft

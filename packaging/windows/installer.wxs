@@ -45,7 +45,7 @@
                 <!-- File Association: .cdl -->
                 <ProgId Id="LogicCraft.Circuit" Description="LogicCraft Circuit File" Icon="LogicCraftEXE" IconIndex="0">
                     <Extension Id="cdl" ContentType="application/xml">
-                        <Verb Id="open" Command="Open with LogicCraft" Argument="&quot;%1&quot;" />
+                        <Verb Id="open" Command="Open with LogicCraft" TargetFile="LogicCraftEXE" Argument="&quot;%1&quot;" />
                     </Extension>
                 </ProgId>
             </Component>
