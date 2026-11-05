@@ -54,12 +54,20 @@ try {
     $light = Get-Command "light.exe" -ErrorAction SilentlyContinue
     if ($candle -and $light) {
         Write-Host "[*] Found WiX Toolset. Building MSI Installer..." -ForegroundColor Green
-        & $candle.Source -arch x64 -out "$OutputDir\installer.wixobj" "packaging\windows\installer.wxs"
-        if ($LASTEXITCODE -eq 0) {
-            & $light.Source -ext WixUIExtension -out "$OutputDir\LogicCraft-1.0.0-x64.msi" "$OutputDir\installer.wixobj"
+        Push-Location "packaging\windows"
+        try {
+            & $candle.Source -arch x64 -out "$OutputDir\installer.wixobj" "installer.wxs"
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "[SUCCESS] Built target\installer\LogicCraft-1.0.0-x64.msi" -ForegroundColor Green
+                & $light.Source -ext WixUIExtension -out "$OutputDir\LogicCraft-1.0.0-x64.msi" "$OutputDir\installer.wixobj"
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[SUCCESS] Built target\installer\LogicCraft-1.0.0-x64.msi" -ForegroundColor Green
+                }
             }
+        } catch {
+            Write-Host "[-] WiX compilation failed: $_" -ForegroundColor Yellow
+        } finally {
+            Pop-Location
+            $global:LASTEXITCODE = 0
         }
     } else {
         Write-Host "[-] WiX Toolset (candle.exe / light.exe) not in PATH. Skipping .msi compilation." -ForegroundColor Gray
