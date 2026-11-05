@@ -327,8 +327,14 @@ impl CircuitSimulator {
     }
 
     pub fn populate_demo_circuit(&mut self, lib: &GateLibrary) {
+        while self.pages.len() < 2 {
+            let n = self.pages.len() + 1;
+            self.pages.push(CircuitPage::new(format!("Page {n}")));
+        }
         self.pages[0].gates.clear();
         self.pages[0].wires.clear();
+        self.pages[1].gates.clear();
+        self.pages[1].wires.clear();
 
         // Build a complete, visually clear, interactive digital circuit on Page 1:
         // 1) Variable-rate Clock + Count Enable Toggle Switch + Clear Switch driving a 4-Bit Counting Register
