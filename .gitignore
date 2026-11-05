@@ -22,4 +22,4 @@ $RECYCLE.BIN/
 .DS_Store
 
 # Test/verification screenshots (keep shots directory clean)
-shots/verification*.png
+/shots/
