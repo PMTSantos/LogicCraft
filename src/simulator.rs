@@ -107,6 +107,172 @@ pub struct WireInstance {
     pub selected: bool,
     pub custom_mid_x: Option<f32>,
     pub custom_mid_y: Option<f32>,
+    /// Custom interior orthogonal vertices between `p1` (`points[0]`) and `p2` (`points[last]`).
+    pub waypoints: Vec<[f32; 2]>,
+    /// User-created breakpoints via double-click: `(waypoint_index, split_was_vertical)`.
+    /// The breakpoint handle is located at `points[waypoint_index + 1]`.
+    pub breakpoints: Vec<(usize, bool)>,
+}
+
+impl WireInstance {
+    /// Inserts a new user breakpoint on segment `seg_idx` at `world_pos`, splitting the segment
+    /// so both the breakpoint handle and the two sub-segments can be dragged independently.
+    /// Returns the index in `self.breakpoints` of the newly created breakpoint.
+    pub fn add_breakpoint(&mut self, mut seg_idx: usize, world_pos: [f32; 2]) -> Option<usize> {
+        if self.points.len() < 2 || seg_idx + 1 >= self.points.len() {
+            return None;
+        }
+
+        let a = self.points[seg_idx];
+        let b = self.points[seg_idx + 1];
+        let is_vert = (a[0] - b[0]).abs() <= (a[1] - b[1]).abs();
+
+        let bp = if is_vert {
+            let y_min = a[1].min(b[1]);
+            let y_max = a[1].max(b[1]);
+            [
+                a[0],
+                CircuitSimulator::snap_to_grid(world_pos[1]).clamp(y_min, y_max),
+            ]
+        } else {
+            let x_min = a[0].min(b[0]);
+            let x_max = a[0].max(b[0]);
+            [
+                CircuitSimulator::snap_to_grid(world_pos[0]).clamp(x_min, x_max),
+                a[1],
+            ]
+        };
+
+        // Ensure segment endpoints do not directly mutate pin 0 or the final pin
+        if seg_idx == 0 {
+            let p0 = self.points[0];
+            self.points.insert(1, p0);
+            for (bp_wp_idx, _) in &mut self.breakpoints {
+                *bp_wp_idx += 1;
+            }
+            seg_idx += 1;
+        }
+        if seg_idx + 1 == self.points.len() - 1 {
+            let plast = *self.points.last().unwrap();
+            let insert_pos = self.points.len() - 1;
+            self.points.insert(insert_pos, plast);
+        }
+
+        let pt_idx = seg_idx + 1;
+        self.points.insert(pt_idx, bp);
+        self.points.insert(pt_idx + 1, bp);
+
+        let new_wp_idx = pt_idx - 1;
+        for (bp_wp_idx, _) in &mut self.breakpoints {
+            if *bp_wp_idx >= new_wp_idx {
+                *bp_wp_idx += 2;
+            }
+        }
+        self.breakpoints.push((new_wp_idx, is_vert));
+        self.waypoints = self.points[1..self.points.len() - 1].to_vec();
+        Some(self.breakpoints.len() - 1)
+    }
+
+    /// Moves user breakpoint `bp_list_idx` to `world_pos` while preserving orthogonal segments.
+    pub fn move_breakpoint(&mut self, bp_list_idx: usize, world_pos: [f32; 2]) {
+        let Some(&(wp_idx, was_vert)) = self.breakpoints.get(bp_list_idx) else {
+            return;
+        };
+        let pt_idx = wp_idx + 1;
+        if pt_idx == 0 || pt_idx + 1 >= self.points.len() - 1 {
+            return;
+        }
+        let sx = CircuitSimulator::snap_to_grid(world_pos[0]);
+        let sy = CircuitSimulator::snap_to_grid(world_pos[1]);
+
+        if was_vert {
+            self.points[pt_idx][1] = sy;
+            self.points[pt_idx + 1][1] = sy;
+            self.points[pt_idx - 1][0] = sx;
+            self.points[pt_idx][0] = sx;
+        } else {
+            self.points[pt_idx][0] = sx;
+            self.points[pt_idx + 1][0] = sx;
+            self.points[pt_idx - 1][1] = sy;
+            self.points[pt_idx][1] = sy;
+        }
+
+        if self.points.len() > 2 {
+            self.waypoints = self.points[1..self.points.len() - 1].to_vec();
+        }
+    }
+
+    /// Removes user breakpoint `bp_list_idx` and merges the split segment back together.
+    pub fn remove_breakpoint(&mut self, bp_list_idx: usize) {
+        if bp_list_idx >= self.breakpoints.len() {
+            return;
+        }
+        let (wp_idx, was_vert) = self.breakpoints.remove(bp_list_idx);
+        let pt_idx = wp_idx + 1;
+        if pt_idx > 0 && pt_idx + 2 < self.points.len() {
+            if was_vert {
+                let target_x = self.points[pt_idx + 2][0];
+                self.points[pt_idx - 1][0] = target_x;
+            } else {
+                let target_y = self.points[pt_idx + 2][1];
+                self.points[pt_idx - 1][1] = target_y;
+            }
+            self.points.remove(pt_idx + 1);
+            self.points.remove(pt_idx);
+            for (other_wp_idx, _) in &mut self.breakpoints {
+                if *other_wp_idx > wp_idx {
+                    *other_wp_idx = other_wp_idx.saturating_sub(2);
+                }
+            }
+        }
+        if self.breakpoints.is_empty() {
+            self.waypoints.clear();
+        } else if self.points.len() > 2 {
+            self.waypoints = self.points[1..self.points.len() - 1].to_vec();
+        }
+    }
+
+    /// Prepares segment `seg_idx` for orthogonal dragging, inserting a pin stub if `seg_idx`
+    /// touches the start or end pin so the pin endpoint stays anchored.
+    pub fn prepare_segment_drag(&mut self, mut seg_idx: usize) -> usize {
+        if self.points.len() < 2 || seg_idx + 1 >= self.points.len() {
+            return seg_idx;
+        }
+        if seg_idx == 0 {
+            let p0 = self.points[0];
+            self.points.insert(1, p0);
+            for (bp_wp_idx, _) in &mut self.breakpoints {
+                *bp_wp_idx += 1;
+            }
+            seg_idx += 1;
+        }
+        if seg_idx + 1 == self.points.len() - 1 {
+            let plast = *self.points.last().unwrap();
+            let insert_pos = self.points.len() - 1;
+            self.points.insert(insert_pos, plast);
+        }
+        if self.points.len() > 2 {
+            self.waypoints = self.points[1..self.points.len() - 1].to_vec();
+        }
+        seg_idx
+    }
+
+    /// Moves interior segment `seg_idx` orthogonally to `snapped_coord`.
+    pub fn move_segment_orthogonal(&mut self, seg_idx: usize, is_vert: bool, snapped_coord: f32) {
+        if seg_idx == 0 || seg_idx + 1 >= self.points.len() - 1 {
+            return;
+        }
+        if is_vert {
+            self.points[seg_idx][0] = snapped_coord;
+            self.points[seg_idx + 1][0] = snapped_coord;
+        } else {
+            self.points[seg_idx][1] = snapped_coord;
+            self.points[seg_idx + 1][1] = snapped_coord;
+        }
+        if self.points.len() > 2 {
+            self.waypoints = self.points[1..self.points.len() - 1].to_vec();
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -581,6 +747,8 @@ impl CircuitSimulator {
             selected: false,
             custom_mid_x: None,
             custom_mid_y: None,
+            waypoints: Vec::new(),
+            breakpoints: Vec::new(),
         });
         self.rebuild_wire_geometry(lib, page_idx);
         id
@@ -756,7 +924,30 @@ impl CircuitSimulator {
                     .unwrap_or_else(|| *w.points.last().unwrap_or(&[0.0, 0.0]));
                 let src_pin = w.endpoints.first().cloned();
 
-                if let Some(mid_x) = w.custom_mid_x {
+                if !w.waypoints.is_empty() {
+                    let mut pts = Vec::with_capacity(w.waypoints.len() + 2);
+                    pts.push(p1);
+                    pts.extend_from_slice(&w.waypoints);
+                    pts.push(p2);
+                    let n = pts.len();
+                    if n >= 4 {
+                        let first_inner_vert =
+                            (pts[1][0] - pts[2][0]).abs() <= (pts[1][1] - pts[2][1]).abs();
+                        if first_inner_vert {
+                            pts[1][1] = p1[1];
+                        } else {
+                            pts[1][0] = p1[0];
+                        }
+                        let last_inner_vert = (pts[n - 3][0] - pts[n - 2][0]).abs()
+                            <= (pts[n - 3][1] - pts[n - 2][1]).abs();
+                        if last_inner_vert {
+                            pts[n - 2][1] = p2[1];
+                        } else {
+                            pts[n - 2][0] = p2[0];
+                        }
+                    }
+                    updated_points.push((pts, Vec::new()));
+                } else if let Some(mid_x) = w.custom_mid_x {
                     let y_min = p1[1].min(p2[1]);
                     let y_max = p1[1].max(p2[1]);
                     occupied_lanes.push((mid_x, y_min, y_max, src_pin));
@@ -845,6 +1036,9 @@ impl CircuitSimulator {
 
         if let Some(page) = self.pages.get_mut(page_idx) {
             for (w, (pts, dots)) in page.wires.iter_mut().zip(updated_points) {
+                if !w.waypoints.is_empty() && pts.len() > 2 {
+                    w.waypoints = pts[1..pts.len() - 1].to_vec();
+                }
                 w.points = pts;
                 w.solder_dots = dots;
             }

@@ -178,8 +178,9 @@ pub struct LogicCraftApp {
     pub dragging_gate_id: Option<u32>,
     pub drag_anchor_world: [f32; 2],
     pub drag_initial_positions: Vec<(u32, [f32; 2])>,
-    pub drag_initial_wire_mids: Vec<(u32, Option<f32>, Option<f32>)>,
-    pub dragging_wire: Option<(u32, bool)>,
+    pub drag_initial_wire_mids: Vec<(u32, Option<f32>, Option<f32>, Vec<[f32; 2]>)>,
+    pub dragging_wire: Option<(u32, usize, bool)>,
+    pub dragging_wire_breakpoint: Option<(u32, usize)>,
     pub dragging_wire_group: Vec<u32>,
     pub dragging_kmap: Option<usize>,
     pub dragging_kmap_func: Option<usize>,
@@ -269,6 +270,7 @@ impl LogicCraftApp {
             drag_initial_positions: Vec::new(),
             drag_initial_wire_mids: Vec::new(),
             dragging_wire: None,
+            dragging_wire_breakpoint: None,
             dragging_wire_group: Vec::new(),
             dragging_kmap: None,
             dragging_kmap_func: None,
@@ -547,6 +549,10 @@ impl LogicCraftApp {
             w.custom_mid_y = w
                 .custom_mid_y
                 .map(|my| CircuitSimulator::snap_to_grid(my - 2.5));
+            for wp in &mut w.waypoints {
+                wp[0] = CircuitSimulator::snap_to_grid(wp[0] + 2.5);
+                wp[1] = CircuitSimulator::snap_to_grid(wp[1] - 2.5);
+            }
         }
 
         let to_paste = self.clipboard_gates.clone();
@@ -1056,6 +1062,7 @@ mod tests {
             drag_initial_positions: Vec::new(),
             drag_initial_wire_mids: Vec::new(),
             dragging_wire: None,
+            dragging_wire_breakpoint: None,
             dragging_wire_group: Vec::new(),
             dragging_kmap: None,
             dragging_kmap_func: None,
@@ -1256,9 +1263,60 @@ mod tests {
 
     #[test]
     fn test_updater_version_comparison() {
-        assert!(crate::updater::is_version_newer("1.0.4", "1.0.3"));
+        assert!(crate::updater::is_version_newer("1.0.5", "1.0.4"));
         assert!(crate::updater::is_version_newer("v1.1.0", "1.0.9"));
-        assert!(!crate::updater::is_version_newer("1.0.4", "1.0.4"));
-        assert!(!crate::updater::is_version_newer("1.0.2", "1.0.4"));
+        assert!(!crate::updater::is_version_newer("1.0.5", "1.0.5"));
+        assert!(!crate::updater::is_version_newer("1.0.2", "1.0.5"));
+    }
+
+    #[test]
+    fn test_wire_breakpoints_add_move_remove_and_roundtrip() {
+        let mut lib = GateLibrary::new();
+        let mut sim = CircuitSimulator::new(&lib);
+        sim.pages[0].gates.clear();
+        sim.pages[0].wires.clear();
+
+        let g1 = GateInstance::new(1, lib.get("AA_AND2").unwrap(), [-10.0, 5.0]);
+        let g2 = GateInstance::new(2, lib.get("GA_LED").unwrap(), [10.0, -5.0]);
+        sim.pages[0].gates.push(g1);
+        sim.pages[0].gates.push(g2);
+        let wid = sim.connect_pins(&lib, 0, 1, "OUT", 2, "IN_0", "W_BP");
+
+        // Double-click middle vertical segment (seg_idx = 1) to create a breakpoint
+        {
+            let w = sim.pages[0].wires.iter_mut().find(|w| w.id == wid).unwrap();
+            assert_eq!(w.points.len(), 4);
+            assert!(w.add_breakpoint(1, [0.0, 0.0]).is_some());
+            assert_eq!(w.breakpoints.len(), 1);
+            assert_eq!(w.points.len(), 6);
+
+            // Move the breakpoint in 2D
+            w.move_breakpoint(0, [2.0, 1.5]);
+            let bp_pt_idx = w.breakpoints[0].0 + 1;
+            assert!((w.points[bp_pt_idx][0] - 2.0).abs() < 1e-4);
+            assert!((w.points[bp_pt_idx][1] - 1.5).abs() < 1e-4);
+
+            // Drag one of the split vertical sub-segments orthogonally
+            w.move_segment_orthogonal(1, true, -3.5);
+            assert!((w.points[1][0] - (-3.5)).abs() < 1e-4);
+        }
+
+        sim.rebuild_wire_geometry(&lib, 0);
+
+        // Export and import CDL/LCC to verify persistence
+        let xml = export_cdl(&sim, Some(&lib));
+        assert!(xml.contains("<waypoints>"));
+        assert!(xml.contains("<breakpoints>"));
+
+        let mut restored_sim = CircuitSimulator::new(&lib);
+        import_cdl(&mut restored_sim, &mut lib, &xml).unwrap();
+        let rw = &restored_sim.pages[0].wires[0];
+        assert_eq!(rw.breakpoints.len(), 1);
+        assert_eq!(rw.waypoints.len(), 4);
+
+        // Remove the breakpoint
+        let mut rw_mut = rw.clone();
+        rw_mut.remove_breakpoint(0);
+        assert!(rw_mut.breakpoints.is_empty());
     }
 }

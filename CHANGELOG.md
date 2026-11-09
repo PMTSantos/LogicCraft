@@ -2,6 +2,16 @@
 
 All notable changes to **LogicCraft CAD** are documented in this file.
 
+## [1.0.5] - 2026-11-09
+
+### Added
+- **Wire Breakpoints on Double-Click**: Double-click on any vertical or horizontal wire segment to create an interactive breakpoint (`WireInstance::add_breakpoint`).
+  - Drag the breakpoint handle in 2D (`[x, y]`) or drag the split wire segments on either side orthogonally (`WireInstance::move_breakpoint` / `WireInstance::move_segment_orthogonal`) to custom-route wires around components.
+  - Double-click or right-click an existing breakpoint to remove it and merge the segment (`WireInstance::remove_breakpoint`).
+  - Full persistence of wire waypoints and breakpoints in `.lcc` / `.cdl` circuit files, undo/redo snapshots, group dragging, and `Ctrl+C` / `Ctrl+V` copy-paste.
+
+---
+
 ## [1.0.4] - 2026-11-09
 
 ### Added

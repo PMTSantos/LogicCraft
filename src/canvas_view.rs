@@ -351,14 +351,18 @@ impl LogicCraftApp {
                     .or_else(|| ui.input(|i| i.pointer.hover_pos()));
                 let press_pos = ui.input(|i| i.pointer.press_origin()).or(pointer_pos);
 
-                // Draw Wires & detect hovered/draggable wire segments
-                let mut hovered_wire_seg: Option<(u32, bool, Pos2)> = None;
-                let mut drag_start_wire_seg: Option<(u32, bool, Pos2)> = None;
+                // Draw Wires & detect hovered/draggable wire segments and breakpoints
+                let mut hovered_wire_seg: Option<(u32, usize, bool, Pos2)> = None;
+                let mut drag_start_wire_seg: Option<(u32, usize, bool, Pos2)> = None;
+                let mut hovered_wire_breakpoint: Option<(u32, usize, Pos2)> = None;
+                let mut drag_start_wire_breakpoint: Option<(u32, usize, Pos2)> = None;
                 {
                     let page = &self.sim.pages[page_idx];
                     let px_per_world = 1.0 / page.zoom_world_per_px.max(0.01);
                     let mut best_hover_score = 8.5_f32;
                     let mut best_press_score = 9.5_f32;
+                    let mut best_bp_hover_dist = 9.5_f32;
+                    let mut best_bp_press_dist = 10.5_f32;
                     for w in &page.wires {
                         let col = if w.selected {
                             p.cyan
@@ -395,17 +399,43 @@ impl LogicCraftApp {
                                 let dist = dist_to_segment(mp, p0, p1);
                                 if dist <= 8.5 && (dist - priority_bonus) < best_hover_score {
                                     best_hover_score = dist - priority_bonus;
-                                    hovered_wire_seg = Some((w.id, is_vert, mid));
+                                    hovered_wire_seg = Some((w.id, seg_idx, is_vert, mid));
                                 }
                             }
                             if let Some(pp) = press_pos {
                                 let dist = dist_to_segment(pp, p0, p1);
                                 if dist <= 9.5 && (dist - priority_bonus) < best_press_score {
                                     best_press_score = dist - priority_bonus;
-                                    drag_start_wire_seg = Some((w.id, is_vert, mid));
+                                    drag_start_wire_seg = Some((w.id, seg_idx, is_vert, mid));
                                 }
                             }
                         }
+
+                        // Draw & hit-test user-created breakpoints on this wire
+                        for (bp_list_idx, &(wp_idx, _)) in w.breakpoints.iter().enumerate() {
+                            let pt_idx = wp_idx + 1;
+                            if let Some(&bp_world) = w.points.get(pt_idx) {
+                                let bp_s = Self::world_to_screen(canvas_rect, page, bp_world);
+                                painter.circle_filled(bp_s, 4.8, if w.selected { p.cyan } else { p.orange });
+                                painter.circle_stroke(bp_s, 4.8, Stroke::new(1.5, p.bg_main));
+
+                                if let Some(mp) = pointer_pos {
+                                    let d = mp.distance(bp_s);
+                                    if d <= best_bp_hover_dist {
+                                        best_bp_hover_dist = d;
+                                        hovered_wire_breakpoint = Some((w.id, bp_list_idx, bp_s));
+                                    }
+                                }
+                                if let Some(pp) = press_pos {
+                                    let d = pp.distance(bp_s);
+                                    if d <= best_bp_press_dist {
+                                        best_bp_press_dist = d;
+                                        drag_start_wire_breakpoint = Some((w.id, bp_list_idx, bp_s));
+                                    }
+                                }
+                            }
+                        }
+
                         if self.show_wire_conn {
                             let dot_r = (WIRE_CONN_RADIUS * px_per_world).clamp(2.5, 6.0);
                             for &dot in &w.solder_dots {
@@ -616,13 +646,17 @@ impl LogicCraftApp {
                 });
             }
 
-            // Show wire drag handle when hovering a wire segment
+            // Show wire breakpoint or segment drag handle when hovering a wire
             if hovered_pin_info.is_none()
                 && clicked_gate_id.is_none()
                 && hovered_kmap_idx.is_none()
                 && hovered_kmap_func_idx.is_none()
             {
-                if let Some((_, is_vert, mid)) = hovered_wire_seg {
+                if let Some((_, _, bp_pos)) = hovered_wire_breakpoint {
+                    painter.circle_filled(bp_pos, 6.2, p.cyan);
+                    painter.circle_stroke(bp_pos, 6.2, Stroke::new(1.5, p.bg_main));
+                    ctx.set_cursor_icon(egui::CursorIcon::Move);
+                } else if let Some((_, _, is_vert, mid)) = hovered_wire_seg {
                     let handle_r = Rect::from_center_size(mid, Vec2::splat(8.0));
                     painter.rect_filled(handle_r, 0.0, p.orange);
                     painter.rect_stroke(handle_r, 0.0, Stroke::new(1.0, p.bg_main));
@@ -690,6 +724,11 @@ impl LogicCraftApp {
             }
 
             // Handle placing a new gate on canvas click (hold Ctrl to place multiple)
+            let active_wire_bp = if resp.drag_started_by(egui::PointerButton::Primary) {
+                drag_start_wire_breakpoint.or(hovered_wire_breakpoint)
+            } else {
+                hovered_wire_breakpoint
+            };
             let active_wire_seg = if resp.drag_started_by(egui::PointerButton::Primary) {
                 drag_start_wire_seg.or(hovered_wire_seg)
             } else {
@@ -888,7 +927,7 @@ impl LogicCraftApp {
                                 !w.endpoints.is_empty()
                                     && w.endpoints.iter().all(|ep| sel_ids.contains(&ep.gate_id))
                             })
-                            .map(|w| (w.id, w.custom_mid_x, w.custom_mid_y))
+                            .map(|w| (w.id, w.custom_mid_x, w.custom_mid_y, w.waypoints.clone()))
                             .collect();
                         self.drag_snapshot_saved = false;
                     }
@@ -908,8 +947,30 @@ impl LogicCraftApp {
                         }
                     }
                 }
-            } else if let Some((wid, is_vert, _)) = active_wire_seg {
-                if resp.clicked() || resp.drag_started_by(egui::PointerButton::Primary) {
+            } else if let Some((wid, bp_idx, _)) = active_wire_bp {
+                if (resp.double_clicked()
+                    || ui.input(|i| i.pointer.button_clicked(egui::PointerButton::Secondary)))
+                    && !self.sim.locked
+                {
+                    self.save_undo_snapshot();
+                    let page = &mut self.sim.pages[page_idx];
+                    for g in &mut page.gates {
+                        g.selected = false;
+                    }
+                    for w in &mut page.wires {
+                        w.selected = w.id == wid;
+                        if w.id == wid {
+                            w.remove_breakpoint(bp_idx);
+                        }
+                    }
+                    self.sim.rebuild_wire_geometry(&self.lib, page_idx);
+                    self.status_message = match self.locale {
+                        crate::i18n::Locale::Pt => {
+                            format!("Ponto de quebra removido do Fio #{wid}.")
+                        }
+                        _ => format!("Removed breakpoint from Wire #{wid}."),
+                    };
+                } else if resp.clicked() || resp.drag_started_by(egui::PointerButton::Primary) {
                     let page = &mut self.sim.pages[page_idx];
                     for g in &mut page.gates {
                         g.selected = false;
@@ -918,56 +979,116 @@ impl LogicCraftApp {
                         w.selected = w.id == wid;
                     }
                     if resp.drag_started_by(egui::PointerButton::Primary) && !self.sim.locked {
-                        self.dragging_wire = Some((wid, is_vert));
-                        let mut group = vec![wid];
-                        if let Some(target_w) = page.wires.iter().find(|w| w.id == wid) {
-                            let target_eps = target_w.endpoints.clone();
-                            let target_coord = target_w.points.windows(2).find_map(|seg| {
-                                let a = seg[0];
-                                let b = seg[1];
-                                let dx = (b[0] - a[0]).abs();
-                                let dy = (b[1] - a[1]).abs();
-                                if dx < 0.01 && dy < 0.01 {
-                                    return None;
-                                }
-                                let sv = dx < dy;
-                                if sv == is_vert {
-                                    Some(if is_vert { a[0] } else { a[1] })
-                                } else {
-                                    None
-                                }
-                            });
-                            if let Some(tc) = target_coord {
-                                for w in &page.wires {
-                                    if w.id != wid
-                                        && w.endpoints.iter().any(|ep| target_eps.contains(ep))
-                                    {
-                                        let shares_trunk = w.points.windows(2).any(|seg| {
-                                            let a = seg[0];
-                                            let b = seg[1];
-                                            let dx = (b[0] - a[0]).abs();
-                                            let dy = (b[1] - a[1]).abs();
-                                            if dx < 0.01 && dy < 0.01 {
-                                                return false;
+                        self.dragging_wire_breakpoint = Some((wid, bp_idx));
+                        self.drag_snapshot_saved = false;
+                    }
+                }
+            } else if let Some((wid, seg_idx, is_vert, _)) = active_wire_seg {
+                if resp.double_clicked() && !self.sim.locked {
+                    if let Some(mp) = pointer_pos.or(press_pos) {
+                        self.save_undo_snapshot();
+                        let page = &mut self.sim.pages[page_idx];
+                        let wpos = Self::screen_to_world(canvas_rect, page, mp);
+                        for g in &mut page.gates {
+                            g.selected = false;
+                        }
+                        for w in &mut page.wires {
+                            w.selected = w.id == wid;
+                            if w.id == wid {
+                                w.add_breakpoint(seg_idx, wpos);
+                            }
+                        }
+                        self.sim.rebuild_wire_geometry(&self.lib, page_idx);
+                        self.status_message = match self.locale {
+                            crate::i18n::Locale::Pt => format!(
+                                "Ponto de quebra criado no Fio #{wid} (arraste o ponto ou os segmentos para reorganizar)."
+                            ),
+                            _ => format!(
+                                "Created breakpoint on Wire #{wid} (drag the breakpoint or wire segments to rearrange)."
+                            ),
+                        };
+                    }
+                } else if resp.clicked() || resp.drag_started_by(egui::PointerButton::Primary) {
+                    let page = &mut self.sim.pages[page_idx];
+                    for g in &mut page.gates {
+                        g.selected = false;
+                    }
+                    for w in &mut page.wires {
+                        w.selected = w.id == wid;
+                    }
+                    if resp.drag_started_by(egui::PointerButton::Primary) && !self.sim.locked {
+                        let has_custom_or_end = page
+                            .wires
+                            .iter()
+                            .find(|w| w.id == wid)
+                            .map(|w| {
+                                !w.waypoints.is_empty()
+                                    || !w.breakpoints.is_empty()
+                                    || seg_idx == 0
+                                    || seg_idx + 1 >= w.points.len().saturating_sub(1)
+                            })
+                            .unwrap_or(false);
+
+                        if has_custom_or_end {
+                            let mut adj_seg = seg_idx;
+                            if let Some(w) = page.wires.iter_mut().find(|w| w.id == wid) {
+                                adj_seg = w.prepare_segment_drag(seg_idx);
+                            }
+                            self.dragging_wire = Some((wid, adj_seg, is_vert));
+                            self.dragging_wire_group.clear();
+                            self.drag_snapshot_saved = false;
+                        } else {
+                            self.dragging_wire = Some((wid, seg_idx, is_vert));
+                            let mut group = vec![wid];
+                            if let Some(target_w) = page.wires.iter().find(|w| w.id == wid) {
+                                let target_eps = target_w.endpoints.clone();
+                                let target_coord = target_w.points.windows(2).find_map(|seg| {
+                                    let a = seg[0];
+                                    let b = seg[1];
+                                    let dx = (b[0] - a[0]).abs();
+                                    let dy = (b[1] - a[1]).abs();
+                                    if dx < 0.01 && dy < 0.01 {
+                                        return None;
+                                    }
+                                    let sv = dx < dy;
+                                    if sv == is_vert {
+                                        Some(if is_vert { a[0] } else { a[1] })
+                                    } else {
+                                        None
+                                    }
+                                });
+                                if let Some(tc) = target_coord {
+                                    for w in &page.wires {
+                                        if w.id != wid
+                                            && w.endpoints.iter().any(|ep| target_eps.contains(ep))
+                                        {
+                                            let shares_trunk = w.points.windows(2).any(|seg| {
+                                                let a = seg[0];
+                                                let b = seg[1];
+                                                let dx = (b[0] - a[0]).abs();
+                                                let dy = (b[1] - a[1]).abs();
+                                                if dx < 0.01 && dy < 0.01 {
+                                                    return false;
+                                                }
+                                                let sv = dx < dy;
+                                                let c = if is_vert { a[0] } else { a[1] };
+                                                sv == is_vert && (c - tc).abs() < 0.05
+                                            });
+                                            if shares_trunk {
+                                                group.push(w.id);
                                             }
-                                            let sv = dx < dy;
-                                            let c = if is_vert { a[0] } else { a[1] };
-                                            sv == is_vert && (c - tc).abs() < 0.05
-                                        });
-                                        if shares_trunk {
-                                            group.push(w.id);
                                         }
                                     }
                                 }
                             }
-                        }
-                        for w in &mut page.wires {
-                            if group.contains(&w.id) {
-                                w.selected = true;
+                            for w in &mut page.wires {
+                                if group.contains(&w.id) {
+                                    w.selected = true;
+                                }
                             }
+                            self.dragging_wire_group = group;
+                            self.drag_snapshot_saved = false;
                         }
-                        self.dragging_wire_group = group;
-                        self.drag_snapshot_saved = false;
                     }
                 }
             } else if resp.drag_started_by(egui::PointerButton::Primary)
@@ -989,7 +1110,7 @@ impl LogicCraftApp {
                 }
             }
 
-            // Handle dragging K-Map, Function, multi-gate group, wire segment, or area selection box
+            // Handle dragging K-Map, Function, multi-gate group, wire breakpoint, wire segment, or area selection box
             if let Some(ki) = self.dragging_kmap_func {
                 if resp.dragged_by(egui::PointerButton::Primary) {
                     if let Some(mp) = pointer_pos {
@@ -1036,10 +1157,14 @@ impl LogicCraftApp {
                                 g.pos = [init_pos[0] + dx, init_pos[1] + dy];
                             }
                         }
-                        for &(wid, init_mx, init_my) in &self.drag_initial_wire_mids {
-                            if let Some(w) = page.wires.iter_mut().find(|w| w.id == wid) {
+                        for (wid, init_mx, init_my, init_wps) in &self.drag_initial_wire_mids {
+                            if let Some(w) = page.wires.iter_mut().find(|w| w.id == *wid) {
                                 w.custom_mid_x = init_mx.map(|mx| mx + dx);
                                 w.custom_mid_y = init_my.map(|my| my + dy);
+                                w.waypoints = init_wps
+                                    .iter()
+                                    .map(|p| [p[0] + dx, p[1] + dy])
+                                    .collect();
                             }
                         }
                         self.sim.rebuild_wire_geometry(&self.lib, page_idx);
@@ -1049,7 +1174,7 @@ impl LogicCraftApp {
                     self.drag_initial_positions.clear();
                     self.drag_initial_wire_mids.clear();
                 }
-            } else if let Some((wid, is_vert)) = self.dragging_wire {
+            } else if let Some((wid, bp_idx)) = self.dragging_wire_breakpoint {
                 if resp.dragged_by(egui::PointerButton::Primary) && !self.sim.locked {
                     if let Some(mp) = pointer_pos {
                         if !self.drag_snapshot_saved {
@@ -1058,21 +1183,56 @@ impl LogicCraftApp {
                         }
                         let page = &mut self.sim.pages[page_idx];
                         let wpos = Self::screen_to_world(canvas_rect, page, mp);
-                        let target_ids = if self.dragging_wire_group.is_empty() {
-                            vec![wid]
-                        } else {
-                            self.dragging_wire_group.clone()
-                        };
+                        if let Some(w) = page.wires.iter_mut().find(|w| w.id == wid) {
+                            w.move_breakpoint(bp_idx, wpos);
+                        }
+                        self.sim.rebuild_wire_geometry(&self.lib, page_idx);
+                    }
+                } else if resp.drag_stopped() {
+                    self.dragging_wire_breakpoint = None;
+                }
+            } else if let Some((wid, seg_idx, is_vert)) = self.dragging_wire {
+                if resp.dragged_by(egui::PointerButton::Primary) && !self.sim.locked {
+                    if let Some(mp) = pointer_pos {
+                        if !self.drag_snapshot_saved {
+                            self.save_undo_snapshot();
+                            self.drag_snapshot_saved = true;
+                        }
+                        let page = &mut self.sim.pages[page_idx];
+                        let wpos = Self::screen_to_world(canvas_rect, page, mp);
                         let snapped_x = CircuitSimulator::snap_to_grid(wpos[0]);
                         let snapped_y = CircuitSimulator::snap_to_grid(wpos[1]);
-                        for w in &mut page.wires {
-                            if target_ids.contains(&w.id) {
-                                if is_vert {
-                                    w.custom_mid_x = Some(snapped_x);
-                                    w.custom_mid_y = None;
-                                } else {
-                                    w.custom_mid_y = Some(snapped_y);
-                                    w.custom_mid_x = None;
+
+                        let use_waypoint_drag = page
+                            .wires
+                            .iter()
+                            .find(|w| w.id == wid)
+                            .map(|w| !w.waypoints.is_empty())
+                            .unwrap_or(false);
+
+                        if use_waypoint_drag {
+                            if let Some(w) = page.wires.iter_mut().find(|w| w.id == wid) {
+                                w.move_segment_orthogonal(
+                                    seg_idx,
+                                    is_vert,
+                                    if is_vert { snapped_x } else { snapped_y },
+                                );
+                            }
+                        } else {
+                            let target_ids = if self.dragging_wire_group.is_empty() {
+                                vec![wid]
+                            } else {
+                                self.dragging_wire_group.clone()
+                            };
+                            for w in &mut page.wires {
+                                if target_ids.contains(&w.id) {
+                                    if is_vert {
+                                        w.custom_mid_x = Some(snapped_x);
+                                        w.custom_mid_y = None;
+                                    } else {
+                                        w.custom_mid_y = Some(snapped_y);
+                                        w.custom_mid_x = None;
+                                    }
                                 }
                             }
                         }

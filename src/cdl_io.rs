@@ -68,8 +68,30 @@ pub fn export_cdl(sim: &CircuitSimulator, lib: Option<&GateLibrary>) -> String {
             if !w.label.is_empty() && w.label != format!("W{}", w.id) {
                 out.push_str(&format!("<label>{}</label>\n", w.label));
             }
+            if let Some(mx) = w.custom_mid_x {
+                out.push_str(&format!("<custom_mid_x>{:.2}</custom_mid_x>\n", mx));
+            }
+            if let Some(my) = w.custom_mid_y {
+                out.push_str(&format!("<custom_mid_y>{:.2}</custom_mid_y>\n", my));
+            }
             if let (Some(mx), Some(my)) = (w.custom_mid_x, w.custom_mid_y) {
                 out.push_str(&format!("<custom_mid>{:.2},{:.2}</custom_mid>\n", mx, my));
+            }
+            if !w.waypoints.is_empty() {
+                let wp_str: Vec<String> = w
+                    .waypoints
+                    .iter()
+                    .map(|p| format!("{:.2},{:.2}", p[0], p[1]))
+                    .collect();
+                out.push_str(&format!("<waypoints>{}</waypoints>\n", wp_str.join(";")));
+            }
+            if !w.breakpoints.is_empty() {
+                let bp_str: Vec<String> = w
+                    .breakpoints
+                    .iter()
+                    .map(|&(idx, v)| format!("{idx}:{}", if v { 1 } else { 0 }))
+                    .collect();
+                out.push_str(&format!("<breakpoints>{}</breakpoints>\n", bp_str.join(",")));
             }
             out.push_str("<shape>\n");
             for seg in w.points.windows(2) {
@@ -274,7 +296,10 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &mut GateLibrary, content: &s
 
         // Parse wire labels and custom mid points from <wire>...</wire>
         let mut wire_labels: HashMap<u32, String> = HashMap::new();
-        let mut wire_custom_mids: HashMap<u32, (f32, f32)> = HashMap::new();
+        let mut wire_custom_mid_x: HashMap<u32, f32> = HashMap::new();
+        let mut wire_custom_mid_y: HashMap<u32, f32> = HashMap::new();
+        let mut wire_waypoints: HashMap<u32, Vec<[f32; 2]>> = HashMap::new();
+        let mut wire_breakpoints: HashMap<u32, Vec<(usize, bool)>> = HashMap::new();
         for w_block in extract_all_tags(page_str, "wire") {
             if let Some(wid) = extract_tag(&w_block, "ID").and_then(|s| s.trim().parse::<u32>().ok()) {
                 if let Some(lbl) = extract_tag(&w_block, "label") {
@@ -283,8 +308,46 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &mut GateLibrary, content: &s
                 if let Some(cm) = extract_tag(&w_block, "custom_mid") {
                     if let Some((x_str, y_str)) = cm.split_once(',') {
                         if let (Ok(x), Ok(y)) = (x_str.trim().parse::<f32>(), y_str.trim().parse::<f32>()) {
-                            wire_custom_mids.insert(wid, (x, y));
+                            wire_custom_mid_x.insert(wid, x);
+                            wire_custom_mid_y.insert(wid, y);
                         }
+                    }
+                }
+                if let Some(cmx) = extract_tag(&w_block, "custom_mid_x") {
+                    if let Ok(x) = cmx.trim().parse::<f32>() {
+                        wire_custom_mid_x.insert(wid, x);
+                    }
+                }
+                if let Some(cmy) = extract_tag(&w_block, "custom_mid_y") {
+                    if let Ok(y) = cmy.trim().parse::<f32>() {
+                        wire_custom_mid_y.insert(wid, y);
+                    }
+                }
+                if let Some(wps_raw) = extract_tag(&w_block, "waypoints") {
+                    let mut wps = Vec::new();
+                    for pair in wps_raw.split(';') {
+                        if let Some((xs, ys)) = pair.split_once(',') {
+                            if let (Ok(x), Ok(y)) = (xs.trim().parse::<f32>(), ys.trim().parse::<f32>()) {
+                                wps.push([x, y]);
+                            }
+                        }
+                    }
+                    if !wps.is_empty() {
+                        wire_waypoints.insert(wid, wps);
+                    }
+                }
+                if let Some(bps_raw) = extract_tag(&w_block, "breakpoints") {
+                    let mut bps = Vec::new();
+                    for tok in bps_raw.split(',') {
+                        if let Some((is, vs)) = tok.split_once(':') {
+                            if let Ok(idx) = is.trim().parse::<usize>() {
+                                let v = vs.trim() == "1";
+                                bps.push((idx, v));
+                            }
+                        }
+                    }
+                    if !bps.is_empty() {
+                        wire_breakpoints.insert(wid, bps);
                     }
                 }
             }
@@ -294,10 +357,10 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &mut GateLibrary, content: &s
         for (wid, endpoints) in wire_pin_links {
             if endpoints.len() >= 2 {
                 let label = wire_labels.remove(&wid).unwrap_or_else(|| format!("W{wid}"));
-                let (custom_mid_x, custom_mid_y) = match wire_custom_mids.remove(&wid) {
-                    Some((x, y)) => (Some(x), Some(y)),
-                    None => (None, None),
-                };
+                let custom_mid_x = wire_custom_mid_x.remove(&wid);
+                let custom_mid_y = wire_custom_mid_y.remove(&wid);
+                let waypoints = wire_waypoints.remove(&wid).unwrap_or_default();
+                let breakpoints = wire_breakpoints.remove(&wid).unwrap_or_default();
                 page.wires.push(WireInstance {
                     id: wid,
                     endpoints,
@@ -310,6 +373,8 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &mut GateLibrary, content: &s
                     selected: false,
                     custom_mid_x,
                     custom_mid_y,
+                    waypoints,
+                    breakpoints,
                 });
             }
         }

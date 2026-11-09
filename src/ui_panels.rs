@@ -1474,9 +1474,12 @@ impl LogicCraftApp {
                 });
             }
             if reset_route {
+                self.save_undo_snapshot();
                 let w = &mut self.sim.pages[page_idx].wires[w_idx];
                 w.custom_mid_x = None;
                 w.custom_mid_y = None;
+                w.waypoints.clear();
+                w.breakpoints.clear();
                 self.sim.rebuild_wire_geometry(&self.lib, page_idx);
             }
             if delete_wire {

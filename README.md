@@ -268,6 +268,9 @@ User preferences are automatically preserved across application restarts in:
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
+### v1.0.5
+- **Added**: Double-click on any wire segment to create a movable breakpoint for flexible orthogonal wire routing (drag the breakpoint in 2D or drag split segments independently; double-click or right-click a breakpoint to remove it).
+
 ### v1.0.4
 - **Added**: Automatic background GitHub update check on application startup with a one-click permission prompt to download, install, and restart automatically.
 - **Fixed**: Live GitHub version and release notes updates in the Update Dialog when clicking "Check for Updates Now".

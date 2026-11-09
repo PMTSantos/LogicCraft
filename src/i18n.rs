@@ -79,6 +79,7 @@ impl Locale {
                 "💡 Dica: Prima Espaço para Executar/Pausar a simulação, ou Ctrl+Z / Ctrl+Y para Desfazer/Refazer",
                 "💡 Dica: Prima Ctrl+G para o Osciloscópio, Ctrl+K para o Mapa de Karnaugh ou Ctrl+T para Nova Página",
                 "💡 Dica: Arraste qualquer segmento vertical ou horizontal de um fio para ajustar o traçado",
+                "💡 Dica: Faça duplo clique num fio para criar um ponto de quebra e reorganizar o caminho",
                 "💡 Dica: Use a roda do rato para Zoom ou arraste com o botão direito/meio para mover a vista",
             ],
             Self::Es => &[
@@ -89,6 +90,7 @@ impl Locale {
                 "💡 Consejo: Pulsa Espacio para Ejecutar/Pausar la simulación, o Ctrl+Z / Ctrl+Y para Deshacer/Rehacer",
                 "💡 Consejo: Pulsa Ctrl+G para Osciloscopio, Ctrl+K para Mapa de Karnaugh o Ctrl+T para Nueva Pestaña",
                 "💡 Consejo: Arrastra cualquier segmento vertical u horizontal de un cable para ajustar su ruta",
+                "💡 Consejo: Haz doble clic en un cable para crear un punto de quiebre y reorganizarlo",
                 "💡 Consejo: Usa la rueda del ratón para Zoom o arrastra con el botón derecho/central para desplazar",
             ],
             Self::Fr => &[
@@ -99,6 +101,7 @@ impl Locale {
                 "💡 Astuce : Appuyez sur Espace pour Lancer/Arrêter la simulation, ou Ctrl+Z / Ctrl+Y pour Annuler/Rétablir",
                 "💡 Astuce : Ctrl+G pour l'Oscilloscope, Ctrl+K pour le Studio Karnaugh ou Ctrl+T pour un nouvel onglet",
                 "💡 Astuce : Faites glisser n'importe quel segment vertical ou horizontal d'un fil pour l'ajuster",
+                "💡 Astuce : Double-cliquez sur un fil pour créer un point de rupture et le réorganiser",
                 "💡 Astuce : Molette de la souris pour zoomer, ou clic droit/milieu glissé pour déplacer la vue",
             ],
             Self::De => &[
@@ -109,6 +112,7 @@ impl Locale {
                 "💡 Tipp: Leertaste für Start/Stopp der Simulation, oder Strg+Z / Strg+Y für Rückgängig/Wiederholen",
                 "💡 Tipp: Strg+G für Oszilloskop, Strg+K für Karnaugh-Studio oder Strg+T für eine neue Seite",
                 "💡 Tipp: Ziehen Sie ein beliebiges vertikales oder horizontales Leitungssegment zum Anpassen",
+                "💡 Tipp: Doppelklicken Sie auf eine Leitung, um einen Haltepunkt zum Neuordnen zu erstellen",
                 "💡 Tipp: Mausrad zum Zoomen oder mit rechter/mittlerer Maustaste ziehen zum Verschieben der Ansicht",
             ],
             Self::En => &[
@@ -119,6 +123,7 @@ impl Locale {
                 "💡 Tip: Press Space to Run / Halt simulation, or Ctrl+Z / Ctrl+Y for Undo / Redo",
                 "💡 Tip: Press Ctrl+G for O-Scope, Ctrl+K for K-Map Studio, or Ctrl+T for a new Page tab",
                 "💡 Tip: Drag any vertical or horizontal wire segment to adjust its routing",
+                "💡 Tip: Double-click on any wire to create a breakpoint and rearrange its route",
                 "💡 Tip: Scroll mouse wheel to zoom, or drag with Middle / Right mouse button to pan",
             ],
         }
