@@ -564,38 +564,54 @@ fn apply_downloaded_asset(
                     println!(" [OK] Created backup at: {}", backup_path.display());
                 }
             }
+            let old_target = install_dir.join("logiccraft.old.exe");
+            let _ = fs::remove_file(&old_target);
+            if target.exists() {
+                let _ = fs::rename(&target, &old_target);
+            }
             match fs::copy(temp_path, &target) {
                 Ok(bytes) => {
+                    let _ = fs::remove_file(&old_target);
                     println!(
                         " [OK] Installed new logiccraft.exe (v{}, {} bytes) to {}",
                         version,
                         bytes,
                         target.display()
                     );
-                    // Also update %LOCALAPPDATA%\Programs\LogicCraft\logiccraft.exe if different
-                    if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
-                        let std_dir = PathBuf::from(local_app)
-                            .join("Programs")
-                            .join("LogicCraft");
-                        let std_exe = std_dir.join("logiccraft.exe");
-                        if std_dir.exists() && std_exe != target {
-                            let _ = fs::copy(temp_path, &std_exe);
-                        }
-                    }
+                    sync_registry_and_remove_duplicate_install(install_dir, version);
                     return true;
                 }
                 Err(e) => {
-                    eprintln!(
-                        " [!] Direct write to {} failed ({e}). Trying installer package...",
+                    let _ = fs::rename(&old_target, &target);
+                    println!(
+                        " [*] Direct write to {} requires Administrator privileges ({e}). Elevating in-place update...",
                         target.display()
                     );
-                    // Fallback to MSI or Setup EXE if directory requires Admin UAC
+                    let src_str = temp_path.to_string_lossy().replace('\'', "''");
+                    let dst_str = target.to_string_lossy().replace('\'', "''");
+                    let ps_elev = format!(
+                        "Start-Process powershell -ArgumentList \"-NoProfile -WindowStyle Hidden -Command `\"Stop-Process -Name logiccraft -Force -ErrorAction SilentlyContinue; Copy-Item -LiteralPath '{src_str}' -Destination '{dst_str}' -Force`\"\" -Verb RunAs -Wait"
+                    );
+                    let status = Command::new("powershell")
+                        .args(["-NoProfile", "-Command", &ps_elev])
+                        .status();
+                    if status.map(|s| s.success()).unwrap_or(false) && target.exists() {
+                        println!(
+                            " [OK] Installed new logiccraft.exe (v{}) to {} with Administrator permission.",
+                            version,
+                            target.display()
+                        );
+                        sync_registry_and_remove_duplicate_install(install_dir, version);
+                        return true;
+                    }
+                    // Fallback to MSI upgrade if directory requires Admin UAC and PowerShell copy was cancelled
                     if let Some(msi) = all_assets.iter().find(|a| a.name.ends_with(".msi")) {
                         let msi_dest = std::env::temp_dir().join(&msi.name);
                         if download_asset(&msi.download_url, &msi_dest) {
                             let _ = Command::new("msiexec")
                                 .args(["/i", msi_dest.to_str().unwrap_or(""), "/passive"])
                                 .status();
+                            sync_registry_and_remove_duplicate_install(install_dir, version);
                             return true;
                         }
                     }
@@ -607,7 +623,12 @@ fn apply_downloaded_asset(
                 temp_path.display()
             );
             match Command::new(temp_path)
-                .args(["/SILENT", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"])
+                .args([
+                    "/SILENT",
+                    "/CLOSEAPPLICATIONS",
+                    "/RESTARTAPPLICATIONS",
+                    &format!("/DIR={}", install_dir.display()),
+                ])
                 .status()
             {
                 Ok(s) if s.success() => {
@@ -885,4 +906,89 @@ fn wait_for_user() {
     println!("\nPress Enter to exit...");
     let mut buf = String::new();
     let _ = std::io::stdin().read_line(&mut buf);
+}
+
+#[cfg(target_os = "windows")]
+fn sync_registry_and_remove_duplicate_install(active_dir: &Path, version: &str) {
+    let active_dir_str = active_dir.to_string_lossy().to_string();
+    let active_exe_str = active_dir.join("logiccraft.exe").to_string_lossy().to_string();
+    let is_in_local_appdata = active_dir_str
+        .to_ascii_lowercase()
+        .contains("appdata\\local\\programs\\logiccraft");
+    let is_in_program_files = active_dir_str
+        .to_ascii_lowercase()
+        .contains("program files\\logiccraft");
+
+    // 1. Update HKCU Uninstall DisplayName & DisplayVersion
+    let ps_sync = format!(
+        "$ver = '{ver}'; \
+         Get-ChildItem 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall' -ErrorAction SilentlyContinue | ForEach-Object {{ \
+             $p = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue; \
+             if ($p.DisplayName -like 'LogicCraft*') {{ \
+                 Set-ItemProperty -Path $_.PSPath -Name 'DisplayName' -Value 'LogicCraft CAD' -ErrorAction SilentlyContinue; \
+                 Set-ItemProperty -Path $_.PSPath -Name 'DisplayVersion' -Value $ver -ErrorAction SilentlyContinue; \
+             }} \
+         }}",
+        ver = version.replace('\'', "''")
+    );
+    let _ = Command::new("powershell")
+        .args(["-NoProfile", "-Command", &ps_sync])
+        .output();
+
+    // 2. Remove duplicate installation if both %LOCALAPPDATA%\Programs\LogicCraft and C:\Program Files\LogicCraft exist
+    if is_in_local_appdata {
+        let pf_exe = std::env::var("ProgramFiles")
+            .ok()
+            .map(|pf| PathBuf::from(pf).join("LogicCraft").join("logiccraft.exe"));
+        if pf_exe.as_ref().map(|p| p.exists()).unwrap_or(false) {
+            println!(" [*] Detected older duplicate installation in Program Files; removing duplicate...");
+            let ps_dedup = format!(
+                "$activeExe = '{exe}'; \
+                 $activeDir = '{dir}'; \
+                 $msiKey = Get-ChildItem 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall','HKLM:\\Software\\WOW6432Node\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall' -ErrorAction SilentlyContinue | \
+                     ForEach-Object {{ Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue }} | \
+                     Where-Object {{ $_.DisplayName -like 'LogicCraft*' -and $_.PSChildName -match '^\\{{.*\\}}$' }} | \
+                     Select-Object -First 1; \
+                 if ($msiKey) {{ \
+                     $guid = $msiKey.PSChildName; \
+                     Start-Process msiexec.exe -ArgumentList \"/x $guid /qn /norestart\" -Verb RunAs -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue; \
+                 }} \
+                 if (Test-Path \"$env:ProgramFiles\\LogicCraft\") {{ \
+                     Start-Process powershell -ArgumentList \"-NoProfile -WindowStyle Hidden -Command `\"Remove-Item -LiteralPath '$env:ProgramFiles\\LogicCraft' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath '$env:ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\LogicCraft CAD' -Recurse -Force -ErrorAction SilentlyContinue`\"\" -Verb RunAs -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue; \
+                 }} \
+                 $desk = [Environment]::GetFolderPath('Desktop'); \
+                 $lnkPath = Join-Path $desk 'LogicCraft CAD.lnk'; \
+                 $sh = New-Object -ComObject WScript.Shell; \
+                 $sc = $sh.CreateShortcut($lnkPath); \
+                 $sc.TargetPath = $activeExe; \
+                 $sc.WorkingDirectory = $activeDir; \
+                 $iconPath = Join-Path $activeDir 'icon.ico'; \
+                 if (Test-Path $iconPath) {{ $sc.IconLocation = \"$iconPath,0\"; }} \
+                 $sc.Save()",
+                exe = active_exe_str.replace('\'', "''"),
+                dir = active_dir_str.replace('\'', "''"),
+            );
+            let _ = Command::new("powershell")
+                .args(["-NoProfile", "-Command", &ps_dedup])
+                .output();
+        }
+    } else if is_in_program_files {
+        if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+            let dup_dir = PathBuf::from(local_app).join("Programs").join("LogicCraft");
+            if dup_dir.exists() && dup_dir != active_dir {
+                println!(" [*] Detected duplicate installation in AppData\\Local\\Programs\\LogicCraft; removing duplicate...");
+                let unins = dup_dir.join("unins000.exe");
+                if unins.exists() {
+                    let _ = Command::new(&unins)
+                        .args(["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"])
+                        .status();
+                }
+                let _ = fs::remove_dir_all(&dup_dir);
+                let ps_clean_hkcu = "Get-ChildItem 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall' -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue; if ($p.DisplayName -like 'LogicCraft*') { Remove-Item $_.PSPath -Recurse -Force -ErrorAction SilentlyContinue } }; Remove-Item \"$env:APPDATA\\Microsoft\\Windows\\Start Menu\\Programs\\LogicCraft CAD\" -Recurse -Force -ErrorAction SilentlyContinue";
+                let _ = Command::new("powershell")
+                    .args(["-NoProfile", "-Command", ps_clean_hkcu])
+                    .output();
+            }
+        }
+    }
 }

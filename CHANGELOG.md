@@ -2,6 +2,15 @@
 
 All notable changes to **LogicCraft CAD** are documented in this file.
 
+## [1.0.6] - 2026-11-09
+
+### Fixed
+- **Prevent Duplicate App Installations on Update**: Fixed the updater creating a second installation in `%LOCALAPPDATA%\Programs\LogicCraft` when updating an existing `C:\Program Files\LogicCraft` (MSI) installation.
+  - Updates now always replace the active installation in-place (requesting Administrator elevation if installed in `C:\Program Files\LogicCraft`).
+  - Added automatic duplicate installation cleanup (`sync_windows_uninstall_and_cleanup_duplicates`) and Windows Uninstall registry version/name synchronization (`AppVerName=LogicCraft CAD`) so only one LogicCraft CAD app and shortcut exist on the system.
+
+---
+
 ## [1.0.5] - 2026-11-09
 
 ### Added

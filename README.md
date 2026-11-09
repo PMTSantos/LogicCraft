@@ -268,6 +268,9 @@ User preferences are automatically preserved across application restarts in:
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
+### v1.0.6
+- **Fixed**: Prevented the updater from creating a second duplicate LogicCraft installation when updating across `C:\Program Files\LogicCraft` and `%LOCALAPPDATA%\Programs\LogicCraft`, and added automatic duplicate cleanup and Windows Installed Apps version synchronization.
+
 ### v1.0.5
 - **Added**: Double-click on any wire segment to create a movable breakpoint for flexible orthogonal wire routing (drag the breakpoint in 2D or drag split segments independently; double-click or right-click a breakpoint to remove it).
 

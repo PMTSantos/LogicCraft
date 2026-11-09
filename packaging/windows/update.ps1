@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "    LogicCraft CAD - Native Windows Updater Script        " -ForegroundColor Cyan
-Write-Host "    Version: 1.0.5 (Latest Release)                       " -ForegroundColor Cyan
+Write-Host "    Version: 1.0.6 (Latest Release)                       " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host ""
 

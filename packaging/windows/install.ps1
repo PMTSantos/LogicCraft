@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  LogicCraft CAD - Windows Installer   " -ForegroundColor Cyan
-Write-Host "  Version: 1.0.5                       " -ForegroundColor Cyan
+Write-Host "  Version: 1.0.6                       " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 

@@ -1,8 +1,8 @@
 ; Inno Setup Script for LogicCraft CAD
-; Generates LogicCraft-Setup-1.0.5-x64.exe
+; Generates LogicCraft-Setup-1.0.6-x64.exe
 
 #define MyAppName "LogicCraft CAD"
-#define MyAppVersion "1.0.5"
+#define MyAppVersion "1.0.6"
 #define MyAppPublisher "Craft Anything"
 #define MyAppURL "https://github.com/PMTSantos/LogicCraft"
 #define MyAppExeName "logiccraft.exe"
@@ -14,6 +14,7 @@
 AppId={{5F81D6C4-9721-4E6B-88F4-E1F8C39B7A21}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+AppVerName={#MyAppName}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -21,6 +22,7 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\LogicCraft
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
+CloseApplications=force
 OutputDir=..\..\target\installer
 OutputBaseFilename=LogicCraft-Setup-{#MyAppVersion}-x64
 SetupIconFile=..\assets\icon.ico
