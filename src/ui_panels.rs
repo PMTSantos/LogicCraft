@@ -235,6 +235,7 @@ impl LogicCraftApp {
                         ui.separator();
                         if ui.button(tr.update_menu_item).clicked() {
                             self.show_update_dialog = true;
+                            self.trigger_update_check(ctx, true);
                             ui.close_menu();
                         }
                         ui.separator();

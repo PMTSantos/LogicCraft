@@ -31,8 +31,10 @@ mod simulator;
 mod theme;
 mod ui_dialogs;
 mod ui_panels;
+mod updater;
 
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Key, Pos2, Rect, Sense, Stroke, Vec2};
@@ -50,6 +52,7 @@ use crate::mechanics::{
     DEFAULT_REFRESH_RATE_MS, INITIAL_FRAME_HEIGHT, INITIAL_FRAME_WIDTH,
 };
 use crate::simulator::{CircuitPage, CircuitSimulator, GateInstance, PinRef, WireInstance};
+use crate::updater::{GitHubRelease, UpdateMessage, UpdateStatus};
 
 fn main() -> eframe::Result<()> {
     let mut screenshot_path: Option<PathBuf> = None;
@@ -210,7 +213,10 @@ pub struct LogicCraftApp {
     pub custom_ic_json_buf: String,
     pub custom_ic_feedback: Option<(bool, String)>,
 
-    // Timing & Screenshot
+    // Timing, Updater & Screenshot
+    pub update_status: UpdateStatus,
+    pub update_tx: Sender<UpdateMessage>,
+    pub update_rx: Receiver<UpdateMessage>,
     pub last_sim_tick: Instant,
     pub frame_count: u32,
     pub screenshot_target: Option<PathBuf>,
@@ -224,11 +230,13 @@ impl LogicCraftApp {
         initial_circuit_path: Option<PathBuf>,
         settings: AppSettings,
     ) -> Self {
+        crate::updater::cleanup_old_binaries();
         let lib = GateLibrary::new();
         let sim = CircuitSimulator::new(&lib);
         let default_json = serde_json::to_string_pretty(&builtin_custom_templates()[0])
             .unwrap_or_default();
         let locale = settings.locale;
+        let (update_tx, update_rx) = mpsc::channel();
         #[allow(unused_mut)]
         let mut app = Self {
             lib,
@@ -292,6 +300,9 @@ impl LogicCraftApp {
             ],
             custom_ic_json_buf: default_json,
             custom_ic_feedback: None,
+            update_status: UpdateStatus::Idle,
+            update_tx,
+            update_rx,
             last_sim_tick: Instant::now(),
             frame_count: 0,
             screenshot_target,
@@ -312,7 +323,107 @@ impl LogicCraftApp {
         crate::theme::install_fonts(&cc.egui_ctx);
         app.apply_theme(&cc.egui_ctx);
         app.save_settings();
+
+        // Automatically check for updates on startup (unless running in headless screenshot mode)
+        if app.screenshot_target.is_none() {
+            app.trigger_update_check(&cc.egui_ctx, false);
+        }
+
         app
+    }
+
+    pub fn trigger_update_check(&mut self, ctx: &egui::Context, manual: bool) {
+        self.update_status = UpdateStatus::Checking;
+        if manual {
+            self.status_message = match self.locale {
+                Locale::Pt => "A verificar atualizações no GitHub...".to_string(),
+                _ => "Checking GitHub for updates...".to_string(),
+            };
+        }
+        crate::updater::spawn_update_check(self.update_tx.clone(), ctx.clone(), manual);
+    }
+
+    pub fn trigger_install_update(&mut self, ctx: &egui::Context, release: GitHubRelease) {
+        let ver = release.version.clone();
+        self.update_status = UpdateStatus::Downloading {
+            release: release.clone(),
+            progress: match self.locale {
+                Locale::Pt => format!("A preparar transferência da versão v{ver}..."),
+                _ => format!("Preparing download of v{ver}..."),
+            },
+        };
+        crate::updater::spawn_download_and_install(self.update_tx.clone(), ctx.clone(), release);
+    }
+
+    pub fn poll_updater(&mut self) {
+        while let Ok(msg) = self.update_rx.try_recv() {
+            match msg {
+                UpdateMessage::CheckResult { result, manual } => match result {
+                    Ok(rel) => {
+                        let pkg_ver = env!("CARGO_PKG_VERSION");
+                        if crate::updater::is_version_newer(&rel.version, pkg_ver) {
+                            self.status_message = match self.locale {
+                                Locale::Pt => format!(
+                                    "Nova atualização disponível no GitHub: v{} (Instalada: v{pkg_ver})",
+                                    rel.version
+                                ),
+                                _ => format!(
+                                    "New update available on GitHub: v{} (Installed: v{pkg_ver})",
+                                    rel.version
+                                ),
+                            };
+                            self.update_status = UpdateStatus::UpdateAvailable(rel);
+                            // Automatically open the update dialog on startup when a new release exists!
+                            self.show_update_dialog = true;
+                        } else {
+                            if manual {
+                                self.status_message = format!(
+                                    "LogicCraft CAD v{pkg_ver} (GitHub: v{}): {}",
+                                    rel.version,
+                                    self.locale.tr().update_status_latest
+                                );
+                            }
+                            self.update_status = UpdateStatus::UpToDate(rel);
+                        }
+                    }
+                    Err(err) => {
+                        if manual {
+                            self.status_message = format!("Update check error: {err}");
+                        }
+                        self.update_status = UpdateStatus::Error(err);
+                    }
+                },
+                UpdateMessage::DownloadProgress { release, progress } => {
+                    self.status_message = progress.clone();
+                    self.update_status = UpdateStatus::Downloading { release, progress };
+                }
+                UpdateMessage::InstallResult(res) => match res {
+                    Ok((ver, needs_restart)) => {
+                        if needs_restart {
+                            // Automatically restart into the newly installed binary!
+                            crate::updater::restart_application();
+                            self.update_status = UpdateStatus::ReadyToRestart {
+                                version: ver.clone(),
+                                message: format!(
+                                    "Update v{ver} installed! Click Restart to launch the new version."
+                                ),
+                            };
+                        } else {
+                            self.update_status = UpdateStatus::ReadyToRestart {
+                                version: ver.clone(),
+                                message: format!(
+                                    "Installer for v{ver} launched."
+                                ),
+                            };
+                        }
+                    }
+                    Err(err) => {
+                        self.status_message = format!("Update installation failed: {err}");
+                        self.update_status = UpdateStatus::Error(err);
+                    }
+                },
+            }
+        }
     }
 
     pub fn apply_theme(&self, ctx: &egui::Context) {
@@ -843,6 +954,9 @@ impl eframe::App for LogicCraftApp {
             }
         }
 
+        // Poll background GitHub updater channel
+        self.poll_updater();
+
         // Advance cycling shortcut tips in the footer every 6 seconds
         if self.last_tip_switch.elapsed() >= Duration::from_secs(6) {
             let tips_len = self.locale.cycling_tips().len().max(1);
@@ -968,6 +1082,9 @@ mod tests {
             custom_ic_equations: Vec::new(),
             custom_ic_json_buf: String::new(),
             custom_ic_feedback: None,
+            update_status: UpdateStatus::Idle,
+            update_tx: mpsc::channel().0,
+            update_rx: mpsc::channel().1,
             last_sim_tick: Instant::now(),
             tip_index: 0,
             last_tip_switch: Instant::now(),
@@ -1135,5 +1252,13 @@ mod tests {
         for loc in Locale::ALL {
             assert!(!loc.cycling_tips().is_empty());
         }
+    }
+
+    #[test]
+    fn test_updater_version_comparison() {
+        assert!(crate::updater::is_version_newer("1.0.4", "1.0.3"));
+        assert!(crate::updater::is_version_newer("v1.1.0", "1.0.9"));
+        assert!(!crate::updater::is_version_newer("1.0.4", "1.0.4"));
+        assert!(!crate::updater::is_version_newer("1.0.2", "1.0.4"));
     }
 }

@@ -2,6 +2,20 @@
 
 All notable changes to **LogicCraft CAD** are documented in this file.
 
+## [1.0.4] - 2026-11-09
+
+### Added
+- **Automatic Startup Update Check & Permission Prompt**: On launch, LogicCraft CAD automatically checks the official GitHub Releases API in the background and opens the Update Dialog with release notes and a one-click **"Download & Install Now"** button whenever a newer version is available.
+- **In-App Self-Updater Engine (`src/updater.rs`)**: Downloads the new release directly from GitHub inside the app with live progress telemetry, backs up the previous executable, performs atomic in-place binary replacement (`logiccraft.old.exe`), and automatically restarts into the new version.
+
+### Fixed
+- **Verify Updates Now Button**: Fixed the Update Dialog so clicking **"Check for Updates Now"** live-updates the modal banner, GitHub release version, publication date, and release notes instead of displaying a static label.
+- **Execute LogicCraft Updater Button**: Fixed launching `logiccraft-updater.exe` on Windows paths containing spaces (such as `C:\Users\Pedro Santos\...`) and added automatic in-app download/installation fallback when `logiccraft-updater.exe` is not present.
+- **Standalone `logiccraft-updater.exe` Early Exit**: Fixed `logiccraft-updater.exe` exiting after Step 1 (`Checking for updates on GitHub...`) by detecting the actual installed `logiccraft.exe` file version, proceeding through all 5 download/install steps when run interactively, and preferring direct `logiccraft.exe` binary replacement.
+- **Windows Installers (`.msi` / `.exe`)**: Bundled `logiccraft-updater.exe` into the WiX `.msi` installer and set `PrivilegesRequired=lowest` in the Inno Setup `.exe` installer for seamless user-space self-updates.
+
+---
+
 ## [1.0.3] - 2026-11-09
 
 ### Added

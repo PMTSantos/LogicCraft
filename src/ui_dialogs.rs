@@ -965,6 +965,7 @@ impl LogicCraftApp {
                             .clicked()
                         {
                             self.show_update_dialog = true;
+                            self.trigger_update_check(ctx, true);
                         }
                     });
                 });
@@ -973,29 +974,143 @@ impl LogicCraftApp {
     }
 
     pub fn draw_update_modal(&mut self, ctx: &egui::Context) {
+        if matches!(self.update_status, crate::updater::UpdateStatus::Idle) {
+            self.trigger_update_check(ctx, false);
+        }
+
         let tr = self.locale.tr();
         let p = crate::theme::palette(self.dark_mode);
+        let pkg_ver = env!("CARGO_PKG_VERSION");
+        let is_pt = matches!(self.locale, crate::i18n::Locale::Pt);
+
         let mut open = self.show_update_dialog;
+        let mut action_check = false;
+        let mut action_install: Option<crate::updater::GitHubRelease> = None;
+        let mut action_standalone = false;
+        let mut action_restart = false;
+        let mut action_close = false;
+
+        let status_snapshot = self.update_status.clone();
+
         egui::Window::new(tr.update_window_title)
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
+            .min_width(480.0)
             .frame(crate::theme::window_frame(self.dark_mode))
             .show(ctx, |ui| {
-                crate::theme::section_header(ui, "LOGICCRAFT CAD // NATIVE UPDATER", p.cyan);
-                ui.label(
-                    RichText::new(tr.update_status_latest)
-                        .font(FontId::new(11.5, FontFamily::Monospace))
-                        .color(p.green),
-                );
+                crate::theme::section_header(ui, "LOGICCRAFT CAD // GITHUB AUTO-UPDATER", p.cyan);
+
+                // Live Status Banner based on GitHub API state
+                match &status_snapshot {
+                    crate::updater::UpdateStatus::Idle
+                    | crate::updater::UpdateStatus::Checking => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            let msg = if is_pt {
+                                "A contactar o GitHub Releases (PMTSantos/LogicCraft)..."
+                            } else {
+                                "Checking GitHub Releases (PMTSantos/LogicCraft)..."
+                            };
+                            ui.label(
+                                RichText::new(msg)
+                                    .font(FontId::new(11.5, FontFamily::Monospace))
+                                    .color(p.cyan),
+                            );
+                        });
+                    }
+                    crate::updater::UpdateStatus::UpToDate(rel) => {
+                        let msg = if is_pt {
+                            format!(
+                                "✔ ATUALIZADO — A sua instalação (v{pkg_ver}) corresponde à última versão no GitHub (v{}).",
+                                rel.version
+                            )
+                        } else {
+                            format!(
+                                "✔ UP TO DATE — Installed v{pkg_ver} matches latest GitHub release (v{}).",
+                                rel.version
+                            )
+                        };
+                        ui.label(
+                            RichText::new(msg)
+                                .font(FontId::new(11.5, FontFamily::Monospace))
+                                .strong()
+                                .color(p.green),
+                        );
+                    }
+                    crate::updater::UpdateStatus::UpdateAvailable(rel) => {
+                        let banner = if is_pt {
+                            format!(
+                                "🚀 NOVA ATUALIZAÇÃO DISPONÍVEL NO GITHUB: v{pkg_ver} ➔ v{}",
+                                rel.version
+                            )
+                        } else {
+                            format!(
+                                "🚀 NEW UPDATE AVAILABLE ON GITHUB: v{pkg_ver} ➔ v{}",
+                                rel.version
+                            )
+                        };
+                        ui.label(
+                            RichText::new(banner)
+                                .font(FontId::new(12.0, FontFamily::Monospace))
+                                .strong()
+                                .color(p.orange),
+                        );
+                        let perm_txt = if is_pt {
+                            "Deseja transferir e instalar automaticamente a nova versão agora?"
+                        } else {
+                            "Would you like to automatically download and install the new version now?"
+                        };
+                        ui.label(
+                            RichText::new(perm_txt)
+                                .font(FontId::new(11.0, FontFamily::Monospace))
+                                .color(p.text_primary),
+                        );
+                    }
+                    crate::updater::UpdateStatus::Downloading { release, progress } => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(
+                                RichText::new(format!("⬇ [v{}] {}", release.version, progress))
+                                    .font(FontId::new(11.5, FontFamily::Monospace))
+                                    .strong()
+                                    .color(p.cyan),
+                            );
+                        });
+                    }
+                    crate::updater::UpdateStatus::ReadyToRestart { version, message } => {
+                        ui.label(
+                            RichText::new(format!("✔ [v{version}] {message}"))
+                                .font(FontId::new(11.5, FontFamily::Monospace))
+                                .strong()
+                                .color(p.green),
+                        );
+                    }
+                    crate::updater::UpdateStatus::Error(err) => {
+                        ui.label(
+                            RichText::new(format!("⚠ {err}"))
+                                .font(FontId::new(11.0, FontFamily::Monospace))
+                                .color(p.red),
+                        );
+                    }
+                }
+
                 ui.separator();
+
+                let remote_rel = match &status_snapshot {
+                    crate::updater::UpdateStatus::UpToDate(r)
+                    | crate::updater::UpdateStatus::UpdateAvailable(r)
+                    | crate::updater::UpdateStatus::Downloading { release: r, .. } => {
+                        Some(r.clone())
+                    }
+                    _ => None,
+                };
 
                 egui::Frame::none()
                     .fill(p.bg_secondary)
                     .inner_margin(egui::Margin::same(8.0))
                     .stroke(Stroke::new(1.0, p.border_secondary))
                     .show(ui, |ui| {
-                        let pkg_ver = env!("CARGO_PKG_VERSION");
                         let arch_desc = if cfg!(target_os = "windows") {
                             "x86_64 WINDOWS (GUI SUBSYSTEM)"
                         } else if cfg!(target_os = "macos") {
@@ -1005,19 +1120,33 @@ impl LogicCraftApp {
                         } else {
                             "CROSS-PLATFORM"
                         };
-                        let (v_label, ch_label, arch_label, set_label) = match self.locale {
-                            crate::i18n::Locale::Pt => (
-                                format!("VERSÃO ATUAL INSTALADA: {pkg_ver}"),
-                                "CANAL DE ATUALIZAÇÃO: ESTÁVEL (OFICIAL)".to_string(),
-                                format!("ARQUITETURA ALVO: {arch_desc}"),
-                                "PERSISTÊNCIA DE DEFINIÇÕES: ATIVA (settings.json)".to_string(),
-                            ),
-                            _ => (
-                                format!("CURRENT INSTALLED VERSION: {pkg_ver}"),
-                                "RELEASE CHANNEL: STABLE (OFFICIAL)".to_string(),
-                                format!("TARGET ARCHITECTURE: {arch_desc}"),
-                                "SETTINGS PERSISTENCE: ENABLED (settings.json)".to_string(),
-                            ),
+                        let gh_ver_str = match &remote_rel {
+                            Some(r) if !r.published_at.is_empty() => {
+                                format!("v{} ({})", r.version, r.published_at)
+                            }
+                            Some(r) => format!("v{}", r.version),
+                            None => {
+                                if is_pt {
+                                    "A verificar...".to_string()
+                                } else {
+                                    "Checking...".to_string()
+                                }
+                            }
+                        };
+                        let (v_label, gh_label, arch_label, set_label) = if is_pt {
+                            (
+                                format!("VERSÃO ATUAL INSTALADA:   v{pkg_ver}"),
+                                format!("ÚLTIMA VERSÃO NO GITHUB:  {gh_ver_str}"),
+                                format!("ARQUITETURA ALVO:         {arch_desc}"),
+                                "PERSISTÊNCIA DEFINIÇÕES:  ATIVA (settings.json)".to_string(),
+                            )
+                        } else {
+                            (
+                                format!("CURRENT INSTALLED VERSION: v{pkg_ver}"),
+                                format!("LATEST GITHUB RELEASE:     {gh_ver_str}"),
+                                format!("TARGET ARCHITECTURE:       {arch_desc}"),
+                                "SETTINGS PERSISTENCE:      ENABLED (settings.json)".to_string(),
+                            )
                         };
                         ui.label(
                             RichText::new(v_label)
@@ -1025,9 +1154,10 @@ impl LogicCraftApp {
                                 .color(p.text_primary),
                         );
                         ui.label(
-                            RichText::new(ch_label)
-                                .font(FontId::new(10.5, FontFamily::Monospace))
-                                .color(p.text_secondary),
+                            RichText::new(gh_label)
+                                .font(FontId::new(11.0, FontFamily::Monospace))
+                                .strong()
+                                .color(p.cyan),
                         );
                         ui.label(
                             RichText::new(arch_label)
@@ -1041,163 +1171,155 @@ impl LogicCraftApp {
                         );
                     });
 
-                ui.add_space(6.0);
+                // Show release notes if available
+                if let Some(ref rel) = remote_rel {
+                    if !rel.body.is_empty() {
+                        ui.add_space(4.0);
+                        let notes_hdr = if is_pt {
+                            format!("NOTAS DE LANÇAMENTO // {}", rel.name.to_uppercase())
+                        } else {
+                            format!("RELEASE NOTES // {}", rel.name.to_uppercase())
+                        };
+                        ui.label(
+                            RichText::new(notes_hdr)
+                                .font(FontId::new(10.0, FontFamily::Monospace))
+                                .strong()
+                                .color(p.text_secondary),
+                        );
+                        egui::Frame::none()
+                            .fill(p.bg_elevated)
+                            .inner_margin(egui::Margin::same(6.0))
+                            .stroke(Stroke::new(1.0, p.border_secondary))
+                            .show(ui, |ui| {
+                                egui::ScrollArea::vertical()
+                                    .id_source("update_release_notes_scroll")
+                                    .max_height(110.0)
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            RichText::new(&rel.body)
+                                                .font(FontId::new(10.5, FontFamily::Monospace))
+                                                .color(p.text_primary),
+                                        );
+                                    });
+                            });
+                    }
+                }
+
+                ui.add_space(8.0);
+
+                // Prominent 1-Click Permission Banner when an update is available
+                if let crate::updater::UpdateStatus::UpdateAvailable(ref rel) = status_snapshot {
+                    ui.horizontal(|ui| {
+                        let install_lbl = if is_pt {
+                            format!("⬇ Transferir e Instalar v{} Agora (Automático)", rel.version)
+                        } else {
+                            format!("⬇ Download & Install v{} Now (Automatic)", rel.version)
+                        };
+                        let btn = egui::Button::new(
+                            RichText::new(install_lbl)
+                                .font(FontId::new(11.5, FontFamily::Monospace))
+                                .strong()
+                                .color(Color32::from_rgb(10, 14, 18)),
+                        )
+                        .fill(p.green)
+                        .rounding(0.0);
+                        if ui.add_sized([330.0, 28.0], btn).clicked() {
+                            action_install = Some(rel.clone());
+                        }
+
+                        let later_lbl = if is_pt { "Mais Tarde" } else { "Later" };
+                        if ui
+                            .add_sized(
+                                [100.0, 28.0],
+                                egui::Button::new(
+                                    RichText::new(later_lbl)
+                                        .font(FontId::new(11.0, FontFamily::Monospace))
+                                        .color(p.text_secondary),
+                                )
+                                .rounding(0.0),
+                            )
+                            .clicked()
+                        {
+                            action_close = true;
+                        }
+                    });
+                    ui.add_space(4.0);
+                } else if let crate::updater::UpdateStatus::ReadyToRestart { ref version, .. } =
+                    status_snapshot
+                {
+                    let restart_lbl = if is_pt {
+                        format!("🚀 Reiniciar LogicCraft Agora (v{version})")
+                    } else {
+                        format!("🚀 Restart LogicCraft Now (v{version})")
+                    };
+                    let btn = egui::Button::new(
+                        RichText::new(restart_lbl)
+                            .font(FontId::new(11.5, FontFamily::Monospace))
+                            .strong()
+                            .color(Color32::from_rgb(10, 14, 18)),
+                    )
+                    .fill(p.green)
+                    .rounding(0.0);
+                    if ui.add_sized([340.0, 28.0], btn).clicked() {
+                        action_restart = true;
+                    }
+                    ui.add_space(4.0);
+                }
+
+                let is_busy = matches!(
+                    status_snapshot,
+                    crate::updater::UpdateStatus::Checking
+                        | crate::updater::UpdateStatus::Downloading { .. }
+                );
 
                 ui.horizontal(|ui| {
-                    if ui
-                        .button(
-                            RichText::new(tr.update_check_btn)
-                                .font(FontId::new(11.0, FontFamily::Monospace))
-                                .color(p.cyan),
-                        )
-                        .clicked()
-                    {
-                        let pkg_version = env!("CARGO_PKG_VERSION");
-                        let output = std::process::Command::new("curl")
-                            .args([
-                                "-s",
-                                "-L",
-                                "-H",
-                                "User-Agent: LogicCraft-Updater",
-                                "https://api.github.com/repos/PMTSantos/LogicCraft/releases/latest",
-                            ])
-                            .output();
-
-                        let mut remote_found = None;
-                        if let Ok(out) = output {
-                            if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&out.stdout) {
-                                if let Some(tag) = val.get("tag_name").and_then(|t| t.as_str()) {
-                                    remote_found = Some(tag.trim_start_matches(|c| c == 'v' || c == 'V').to_string());
-                                }
-                            }
+                    ui.add_enabled_ui(!is_busy, |ui| {
+                        if ui
+                            .button(
+                                RichText::new(tr.update_check_btn)
+                                    .font(FontId::new(11.0, FontFamily::Monospace))
+                                    .color(p.cyan),
+                            )
+                            .clicked()
+                        {
+                            action_check = true;
                         }
 
-                        if let Some(remote_ver) = remote_found {
-                            if remote_ver != pkg_version {
-                                self.status_message = format!("Update available on GitHub: v{remote_ver} (Installed: v{pkg_version})");
+                        if ui
+                            .button(
+                                RichText::new(tr.update_run_btn)
+                                    .font(FontId::new(11.0, FontFamily::Monospace))
+                                    .color(p.orange),
+                            )
+                            .clicked()
+                        {
+                            if let Some(ref rel) = remote_rel {
+                                action_install = Some(rel.clone());
                             } else {
-                                self.status_message = format!("LogicCraft CAD v{pkg_version}: {}", tr.update_status_latest);
-                            }
-                        } else {
-                            self.status_message = format!("LogicCraft CAD v{pkg_version}: {}", tr.update_status_latest);
-                        }
-                    }
-
-                    if ui
-                        .button(
-                            RichText::new(tr.update_run_btn)
-                                .font(FontId::new(11.0, FontFamily::Monospace))
-                                .color(p.orange),
-                        )
-                        .clicked()
-                    {
-                        let updater_name = if cfg!(windows) { "logiccraft-updater.exe" } else { "logiccraft-updater" };
-                        let mut updater_path = std::env::current_exe()
-                            .ok()
-                            .and_then(|p| p.parent().map(|d| d.join(updater_name)));
-
-                        if updater_path.as_ref().map(|p| !p.exists()).unwrap_or(true) {
-                            #[cfg(windows)]
-                            if let Ok(dir) = std::env::var("LOCALAPPDATA") {
-                                let p = std::path::PathBuf::from(dir)
-                                    .join("Programs")
-                                    .join("LogicCraft")
-                                    .join(updater_name);
-                                if p.exists() {
-                                    updater_path = Some(p);
-                                }
-                            }
-
-                            #[cfg(target_os = "macos")]
-                            for candidate in [
-                                "/Applications/LogicCraft.app/Contents/MacOS/logiccraft-updater",
-                                "/usr/local/bin/logiccraft-updater",
-                            ] {
-                                let p = std::path::PathBuf::from(candidate);
-                                if p.exists() {
-                                    updater_path = Some(p);
-                                    break;
-                                }
-                            }
-
-                            #[cfg(target_os = "linux")]
-                            for candidate in [
-                                "/usr/bin/logiccraft-updater",
-                                "/usr/local/bin/logiccraft-updater",
-                                "/opt/logiccraft/logiccraft-updater",
-                            ] {
-                                let p = std::path::PathBuf::from(candidate);
-                                if p.exists() {
-                                    updater_path = Some(p);
-                                    break;
-                                }
+                                action_standalone = true;
                             }
                         }
-
-                        // Local / development search fallback
-                        if updater_path.as_ref().map(|p| !p.exists()).unwrap_or(true) {
-                            for candidate in [
-                                std::path::PathBuf::from("target").join("release").join(updater_name),
-                                std::path::PathBuf::from("target").join("debug").join(updater_name),
-                            ] {
-                                if candidate.exists() {
-                                    updater_path = Some(candidate);
-                                    break;
-                                }
-                            }
-                        }
-
-                        let launched = if let Some(exe) = updater_path.filter(|p| p.exists()) {
-                            #[cfg(windows)]
-                            {
-                                std::process::Command::new("cmd")
-                                    .args(["/c", "start", "", exe.to_str().unwrap_or("logiccraft-updater.exe")])
-                                    .spawn()
-                                    .is_ok()
-                            }
-                            #[cfg(target_os = "macos")]
-                            {
-                                std::process::Command::new("open")
-                                    .args(["-a", "Terminal", exe.to_str().unwrap_or("logiccraft-updater")])
-                                    .spawn()
-                                    .is_ok()
-                            }
-                            #[cfg(target_os = "linux")]
-                            {
-                                std::process::Command::new("x-terminal-emulator")
-                                    .args(["-e", exe.to_str().unwrap_or("logiccraft-updater")])
-                                    .spawn()
-                                    .or_else(|_| std::process::Command::new(exe).spawn())
-                                    .is_ok()
-                            }
-                            #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
-                            {
-                                std::process::Command::new(exe).spawn().is_ok()
-                            }
-                        } else {
-                            false
-                        };
-
-                        if !launched {
-                            // If updater binary was not located, launch the official GitHub releases page directly
-                            #[cfg(windows)]
-                            let _ = std::process::Command::new("cmd")
-                                .args(["/c", "start", "", "https://github.com/PMTSantos/LogicCraft/releases/latest"])
-                                .spawn();
-                            #[cfg(target_os = "macos")]
-                            let _ = std::process::Command::new("open")
-                                .arg("https://github.com/PMTSantos/LogicCraft/releases/latest")
-                                .spawn();
-                            #[cfg(target_os = "linux")]
-                            let _ = std::process::Command::new("xdg-open")
-                                .arg("https://github.com/PMTSantos/LogicCraft/releases/latest")
-                                .spawn();
-                        }
-                    }
+                    });
                 });
 
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
+                    let standalone_lbl = if is_pt {
+                        "🖥 Abrir Utilitário Consola (logiccraft-updater.exe)"
+                    } else {
+                        "🖥 Launch Console Updater (logiccraft-updater.exe)"
+                    };
+                    if ui
+                        .button(
+                            RichText::new(standalone_lbl)
+                                .font(FontId::new(10.5, FontFamily::Monospace))
+                                .color(p.text_secondary),
+                        )
+                        .clicked()
+                    {
+                        action_standalone = true;
+                    }
+
                     if ui
                         .button(
                             RichText::new("🌐 GitHub Releases")
@@ -1206,18 +1328,7 @@ impl LogicCraftApp {
                         )
                         .clicked()
                     {
-                        #[cfg(windows)]
-                        let _ = std::process::Command::new("cmd")
-                            .args(["/c", "start", "", "https://github.com/PMTSantos/LogicCraft/releases"])
-                            .spawn();
-                        #[cfg(target_os = "macos")]
-                        let _ = std::process::Command::new("open")
-                            .arg("https://github.com/PMTSantos/LogicCraft/releases")
-                            .spawn();
-                        #[cfg(target_os = "linux")]
-                        let _ = std::process::Command::new("xdg-open")
-                            .arg("https://github.com/PMTSantos/LogicCraft/releases")
-                            .spawn();
+                        crate::updater::open_url("https://github.com/PMTSantos/LogicCraft/releases");
                     }
 
                     if ui
@@ -1241,6 +1352,34 @@ impl LogicCraftApp {
                     }
                 });
             });
+
+        if action_check {
+            self.trigger_update_check(ctx, true);
+        }
+        if let Some(rel) = action_install {
+            self.trigger_install_update(ctx, rel);
+        }
+        if action_standalone {
+            if !crate::updater::launch_standalone_updater() {
+                if let Some(rel) = match &self.update_status {
+                    crate::updater::UpdateStatus::UpToDate(r)
+                    | crate::updater::UpdateStatus::UpdateAvailable(r) => Some(r.clone()),
+                    _ => None,
+                } {
+                    self.trigger_install_update(ctx, rel);
+                } else {
+                    crate::updater::open_url(
+                        "https://github.com/PMTSantos/LogicCraft/releases/latest",
+                    );
+                }
+            }
+        }
+        if action_restart {
+            crate::updater::restart_application();
+        }
+        if action_close {
+            open = false;
+        }
         self.show_update_dialog = open;
     }
 }

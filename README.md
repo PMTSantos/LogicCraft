@@ -121,9 +121,9 @@ This script builds release binaries and packages all Windows distribution format
 powershell -ExecutionPolicy Bypass -File packaging\windows\build_installer.ps1
 ```
 Output files in `target\installer\`:
-- `LogicCraft-v1.0.3-windows-x64.zip` — Standalone portable archive with updater and installer scripts
-- `LogicCraft-1.0.3-x64.msi` — Windows Installer package (when WiX or `cargo-packager` is installed)
-- `LogicCraft-Setup-1.0.3-x64.exe` — Inno Setup executable (when `iscc.exe` is installed)
+- `LogicCraft-v1.0.4-windows-x64.zip` — Standalone portable archive with updater and installer scripts
+- `LogicCraft-1.0.4-x64.msi` — Windows Installer package (when WiX or `cargo-packager` is installed)
+- `LogicCraft-Setup-1.0.4-x64.exe` — Inno Setup executable (when `iscc.exe` is installed)
 
 ### 2. Direct User Installation Script
 Installs LogicCraft CAD directly to `%LOCALAPPDATA%\Programs\LogicCraft`, registers the `.lcc` file association, and creates Start Menu and Desktop shortcuts:
@@ -146,14 +146,14 @@ Builds the standalone macOS `.app` bundle with icon conversion and generates a d
 ```bash
 bash packaging/macos/build_dmg.sh
 ```
-Output: `target/installer/LogicCraft-1.0.3.dmg`
+Output: `target/installer/LogicCraft-1.0.4.dmg`
 
 ### 2. macOS Component Package (`.pkg`)
 Generates an Apple installer package configured for `/Applications`:
 ```bash
 bash packaging/macos/build_pkg.sh
 ```
-Output: `target/installer/LogicCraft-1.0.3.pkg` (or fallback `LogicCraft-v1.0.3-macos.tar.gz`)
+Output: `target/installer/LogicCraft-1.0.4.pkg` (or fallback `LogicCraft-v1.0.4-macos.tar.gz`)
 
 ---
 
@@ -164,11 +164,11 @@ Packages the binaries, `.desktop` launcher, and high-resolution icons into a nat
 ```bash
 bash packaging/linux/build_deb.sh
 ```
-Output: `target/installer/logiccraft_1.0.3_amd64.deb`
+Output: `target/installer/logiccraft_1.0.4_amd64.deb`
 
 To install:
 ```bash
-sudo dpkg -i target/installer/logiccraft_1.0.3_amd64.deb
+sudo dpkg -i target/installer/logiccraft_1.0.4_amd64.deb
 ```
 
 ### 2. Standalone Linux Portable Tarball (`.tar.gz`)
@@ -176,7 +176,7 @@ Generates a portable archive with standalone executable, desktop launcher, and u
 ```bash
 bash packaging/linux/build_tarball.sh
 ```
-Output: `target/installer/LogicCraft-v1.0.3-linux-x64.tar.gz`
+Output: `target/installer/LogicCraft-v1.0.4-linux-x64.tar.gz`
 
 ---
 
@@ -231,14 +231,14 @@ powershell -ExecutionPolicy Bypass -File packaging\windows\update.ps1 -InstallDi
 The repository is configured with automated GitHub Actions workflows:
 
 ### Creating a New Version & GitHub Release
-1. Update the version in `Cargo.toml` (e.g. `1.0.3`, `1.1.0`).
+1. Update the version in `Cargo.toml` (e.g. `1.0.4`, `1.1.0`).
 2. Commit and tag the release:
    ```powershell
    git add .
-   git commit -m "feat: v1.0.3 copy-paste, group dragging, multi-place, wire dragging & status bar tips"
-   git tag -a v1.0.3 -m "LogicCraft CAD v1.0.3 Release"
+   git commit -m "fix(v1.0.4): automatic startup update check, in-app self-updater, and standalone updater fixes"
+   git tag -a v1.0.4 -m "LogicCraft CAD v1.0.4 Release"
    git push origin main
-   git push origin v1.0.3
+   git push origin v1.0.4
    ```
 3. The GitHub Actions release workflow (`.github/workflows/release.yml`) automatically triggers on the `v*` tag:
    - Builds optimized multi-platform release binaries on Windows, macOS, and Linux
@@ -267,6 +267,11 @@ User preferences are automatically preserved across application restarts in:
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
+
+### v1.0.4
+- **Added**: Automatic background GitHub update check on application startup with a one-click permission prompt to download, install, and restart automatically.
+- **Fixed**: Live GitHub version and release notes updates in the Update Dialog when clicking "Check for Updates Now".
+- **Fixed**: In-app self-updater and standalone `logiccraft-updater.exe` execution (no longer exits early after Step 1 or fails on paths with spaces).
 
 ### v1.0.3
 - **Added**: `Ctrl+C` and `Ctrl+V` clipboard copy and paste for selected components and internal wire connections (with cascaded grid offset on repeated pastes).

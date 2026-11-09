@@ -3,7 +3,7 @@
     <Product Id="*" 
              Name="LogicCraft CAD" 
              Language="1033" 
-             Version="1.0.3" 
+             Version="1.0.4" 
              Manufacturer="Craft Anything" 
              UpgradeCode="B9F7B1C2-824A-4A73-A33D-14C7741A6732">
              
@@ -50,6 +50,12 @@
                 </ProgId>
             </Component>
 
+            <Component Id="UpdaterExecutable" Guid="91A4C5E8-3D72-4F90-B812-8C2E6B514F09" Win64="yes">
+                <File Id="LogicCraftUpdaterEXE" 
+                      Source="..\..\target\release\logiccraft-updater.exe" 
+                      KeyPath="yes" />
+            </Component>
+
             <Component Id="AppIconComponent" Guid="D27CA915-BC6F-4EE1-B071-EF3F9F588B42" Win64="yes">
                 <File Id="AppIconFile" Source="..\assets\icon.ico" KeyPath="yes" />
             </Component>
@@ -75,6 +81,7 @@
 
         <Feature Id="MainApplication" Title="LogicCraft CAD" Level="1">
             <ComponentRef Id="MainExecutable" />
+            <ComponentRef Id="UpdaterExecutable" />
             <ComponentRef Id="AppIconComponent" />
             <ComponentRef Id="ApplicationShortcut" />
         </Feature>
