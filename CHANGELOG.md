@@ -1,0 +1,41 @@
+# Changelog
+
+All notable changes to **LogicCraft CAD** are documented in this file.
+
+## [1.0.3] - 2026-11-09
+
+### Added
+- **Copy & Paste (`Ctrl+C` / `Ctrl+V`)**: Copy any selected component or group of components (along with internal wire connections and custom routing midpoints) using `Ctrl+C` and paste them onto the canvas with `Ctrl+V`. Consecutive pastes automatically cascade by `+2.5, -2.5` grid units.
+- **Group Dragging**: Selecting multiple components renders a tactical group bounding box and allows dragging the entire group (and its interconnecting wires) together from any component or inside the group selection area.
+- **Multi-Component Placement (`Ctrl` + Click)**: Hold `Ctrl` while placing a component on the canvas to place multiple instances consecutively with each mouse click. Releasing `Ctrl` or right-clicking exits placement mode.
+- **Footer Cycling Tips**: Added localized, automatically cycling keyboard shortcut and workflow tips in the bottom status bar right after the `RUN` / `HALT` state indicator (click the tip to cycle immediately).
+
+### Fixed
+- **Vertical & Horizontal Wire Dragging**: Fixed vertical wire segments failing to move when dragged by evaluating wire hit-testing at the pointer press origin (`press_origin`), prioritizing `custom_mid_x` over `custom_mid_y` in orthogonal geometry reconstruction, and moving co-located net trunk segments together.
+- **`TO` and `FROM` Connectors**: Fixed `DA_FROM` ("From") and `DE_TO` ("To") wireless junction connectors being misidentified as ROM memory devices (`"DA_FROM"` matched `"ROM"` substring). They no longer display the "Edit RAM/ROM Contents..." button or appear in the Memory Editor modal.
+- **Pin Click vs. Component Drag Priority**: Fixed component pins hijacking drag gestures when starting a drag near a pin on a selected component or group.
+
+### Removed
+- **Canvas Telemetry HUD**: Removed the top-right coordinate, zoom, and grid overlay box inside the circuit canvas.
+
+---
+
+## [1.0.2] - 2026-04-19
+
+### Added
+- Complete circuit state persistence in `.lcc` / `.cdl` files including Karnaugh Maps, custom IC definitions, and multi-page tabs.
+- Cross-platform native updater support for Windows, macOS, and Linux.
+
+---
+
+## [1.0.1] - 2026-04-19
+
+### Added
+- Native `.lcc` (LogicCraft Circuit) file format support, inline page tab renaming and closing, and pinned Karnaugh Map canvas overlays.
+
+---
+
+## [1.0.0] - 2026-04-19
+
+### Added
+- Initial public release of LogicCraft CAD — 5-state digital logic simulator, 11 component libraries, Quine-McCluskey Karnaugh Map Studio, Custom IC Hardware Studio, and multi-channel oscilloscope.

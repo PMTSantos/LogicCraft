@@ -322,7 +322,7 @@ impl LogicCraftApp {
                 let mut ram_gates: Vec<(usize, u32, String)> = Vec::new();
                 for (p_idx, page) in self.sim.pages.iter().enumerate() {
                     for g in &page.gates {
-                        if g.type_name.contains("RAM") || g.type_name.contains("ROM") {
+                        if g.is_memory_device() {
                             ram_gates.push((
                                 p_idx,
                                 g.id,
@@ -750,6 +750,7 @@ impl LogicCraftApp {
                                         self.active_category = idx;
                                     }
                                     self.placing_gate_type = Some(id.clone());
+                                    self.placing_multi_active = false;
                                     self.custom_ic_feedback = Some((
                                         false,
                                         format!(
@@ -824,6 +825,7 @@ impl LogicCraftApp {
                                                     self.active_category = idx;
                                                 }
                                                 self.placing_gate_type = Some(id.clone());
+                                    self.placing_multi_active = false;
                                                 self.custom_ic_feedback = Some((
                                                     false,
                                                     format!(
@@ -858,6 +860,7 @@ impl LogicCraftApp {
                                                 self.active_category = idx;
                                             }
                                             self.placing_gate_type = Some(id.clone());
+                                    self.placing_multi_active = false;
                                             self.custom_ic_feedback = Some((
                                                 false,
                                                 format!(

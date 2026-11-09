@@ -49,7 +49,7 @@ use crate::mechanics::{
     DEFAULT_FRAME_HEIGHT, DEFAULT_FRAME_LEFT, DEFAULT_FRAME_TOP, DEFAULT_FRAME_WIDTH,
     DEFAULT_REFRESH_RATE_MS, INITIAL_FRAME_HEIGHT, INITIAL_FRAME_WIDTH,
 };
-use crate::simulator::{CircuitPage, CircuitSimulator, GateInstance, PinRef};
+use crate::simulator::{CircuitPage, CircuitSimulator, GateInstance, PinRef, WireInstance};
 
 fn main() -> eframe::Result<()> {
     let mut screenshot_path: Option<PathBuf> = None;
@@ -149,6 +149,7 @@ pub struct LogicCraftApp {
     pub undo_stack: Vec<Vec<CircuitPage>>,
     pub redo_stack: Vec<Vec<CircuitPage>>,
     pub clipboard_gates: Vec<GateInstance>,
+    pub clipboard_wires: Vec<WireInstance>,
 
     // View & Settings
     pub dark_mode: bool,
@@ -168,6 +169,7 @@ pub struct LogicCraftApp {
     pub palette_search: String,
     pub active_category: usize,
     pub placing_gate_type: Option<String>,
+    pub placing_multi_active: bool,
     pub wiring_from: Option<PinRef>,
     pub selection_box_start: Option<Pos2>,
     pub dragging_gate_id: Option<u32>,
@@ -175,6 +177,7 @@ pub struct LogicCraftApp {
     pub drag_initial_positions: Vec<(u32, [f32; 2])>,
     pub drag_initial_wire_mids: Vec<(u32, Option<f32>, Option<f32>)>,
     pub dragging_wire: Option<(u32, bool)>,
+    pub dragging_wire_group: Vec<u32>,
     pub dragging_kmap: Option<usize>,
     pub dragging_kmap_func: Option<usize>,
     pub drag_offset_world: [f32; 2],
@@ -186,6 +189,8 @@ pub struct LogicCraftApp {
     pub connector_warning: Option<String>,
     pub status_message: String,
     pub current_file_path: Option<PathBuf>,
+    pub tip_index: usize,
+    pub last_tip_switch: Instant,
 
     // Page editing state
     pub editing_page_name: Option<usize>,
@@ -232,6 +237,7 @@ impl LogicCraftApp {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             clipboard_gates: Vec::new(),
+            clipboard_wires: Vec::new(),
             dark_mode: settings.dark_mode,
             show_gridlines: settings.show_gridlines,
             show_wire_conn: settings.show_wire_conn,
@@ -247,6 +253,7 @@ impl LogicCraftApp {
             palette_search: String::new(),
             active_category: 0,
             placing_gate_type: None,
+            placing_multi_active: false,
             wiring_from: None,
             selection_box_start: None,
             dragging_gate_id: None,
@@ -254,6 +261,7 @@ impl LogicCraftApp {
             drag_initial_positions: Vec::new(),
             drag_initial_wire_mids: Vec::new(),
             dragging_wire: None,
+            dragging_wire_group: Vec::new(),
             dragging_kmap: None,
             dragging_kmap_func: None,
             drag_offset_world: [0.0, 0.0],
@@ -265,6 +273,8 @@ impl LogicCraftApp {
             connector_warning: None,
             status_message: locale.tr().status_welcome.to_string(),
             current_file_path: None,
+            tip_index: 0,
+            last_tip_switch: Instant::now(),
             editing_page_name: None,
             page_name_draft: String::new(),
             custom_ic_tab: 0,
@@ -380,9 +390,26 @@ impl LogicCraftApp {
         });
     }
 
-    pub fn copy_selected(&mut self) {
+    pub fn copy_selected(&mut self, ctx: &egui::Context) {
         let page = &self.sim.pages[self.sim.current_page];
         self.clipboard_gates = page.gates.iter().filter(|g| g.selected).cloned().collect();
+        let sel_ids: Vec<u32> = self.clipboard_gates.iter().map(|g| g.id).collect();
+        self.clipboard_wires = page
+            .wires
+            .iter()
+            .filter(|w| {
+                w.endpoints.len() >= 2
+                    && w.endpoints.iter().all(|ep| sel_ids.contains(&ep.gate_id))
+            })
+            .cloned()
+            .collect();
+        if !self.clipboard_gates.is_empty() {
+            ctx.copy_text(format!(
+                "LOGICCRAFT_CLIPBOARD:{}",
+                self.clipboard_gates.len()
+            ));
+            self.status_message = format!("Copied {} component(s).", self.clipboard_gates.len());
+        }
     }
 
     pub fn paste_clipboard(&mut self) {
@@ -394,12 +421,31 @@ impl LogicCraftApp {
         for g in &mut self.sim.pages[page_idx].gates {
             g.selected = false;
         }
+        for w in &mut self.sim.pages[page_idx].wires {
+            w.selected = false;
+        }
+        // Shift clipboard positions on each paste so repeated Ctrl+V cascades cleanly
+        for g in &mut self.clipboard_gates {
+            g.pos[0] = CircuitSimulator::snap_to_grid(g.pos[0] + 2.5);
+            g.pos[1] = CircuitSimulator::snap_to_grid(g.pos[1] - 2.5);
+        }
+        for w in &mut self.clipboard_wires {
+            w.custom_mid_x = w
+                .custom_mid_x
+                .map(|mx| CircuitSimulator::snap_to_grid(mx + 2.5));
+            w.custom_mid_y = w
+                .custom_mid_y
+                .map(|my| CircuitSimulator::snap_to_grid(my - 2.5));
+        }
+
         let to_paste = self.clipboard_gates.clone();
+        let mut id_map = std::collections::HashMap::new();
         for mut g in to_paste {
-            g.id = self.sim.next_gate_id;
+            let old_id = g.id;
+            let new_id = self.sim.next_gate_id;
             self.sim.next_gate_id += 1;
-            g.pos[0] = CircuitSimulator::snap_to_grid(g.pos[0] + 3.0);
-            g.pos[1] = CircuitSimulator::snap_to_grid(g.pos[1] - 3.0);
+            g.id = new_id;
+            id_map.insert(old_id, new_id);
             if g.type_name == "DA_FROM" {
                 let cur_name = g
                     .lparams
@@ -414,6 +460,25 @@ impl LogicCraftApp {
             g.selected = true;
             self.sim.pages[page_idx].gates.push(g);
         }
+        let wires_to_paste = self.clipboard_wires.clone();
+        for mut w in wires_to_paste {
+            let mut valid = true;
+            for ep in &mut w.endpoints {
+                if let Some(&mapped_id) = id_map.get(&ep.gate_id) {
+                    ep.gate_id = mapped_id;
+                } else {
+                    valid = false;
+                }
+            }
+            if valid {
+                w.id = self.sim.next_wire_id;
+                self.sim.next_wire_id += 1;
+                w.selected = true;
+                self.sim.pages[page_idx].wires.push(w);
+            }
+        }
+        self.sim.rebuild_wire_geometry(&self.lib, page_idx);
+        self.status_message = format!("Pasted {} component(s).", self.clipboard_gates.len());
     }
 
     pub fn rotate_selected(&mut self, delta_deg: f32) {
@@ -538,10 +603,22 @@ impl LogicCraftApp {
 
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
         let typing_in_text_edit = ctx.wants_keyboard_input();
+        let mut do_copy = false;
+        let mut do_paste = false;
         ctx.input(|i| {
             let ctrl = i.modifiers.ctrl || i.modifiers.command;
+            let copy_ev = (ctrl && i.key_pressed(Key::C))
+                || i.events.iter().any(|ev| matches!(ev, egui::Event::Copy));
+            let paste_ev = (ctrl && i.key_pressed(Key::V))
+                || i.events
+                    .iter()
+                    .any(|ev| matches!(ev, egui::Event::Paste(_)));
             if !typing_in_text_edit {
-                if ctrl && i.key_pressed(Key::Z) {
+                if copy_ev {
+                    do_copy = true;
+                } else if paste_ev {
+                    do_paste = true;
+                } else if ctrl && i.key_pressed(Key::Z) {
                     self.undo();
                 } else if ctrl && i.key_pressed(Key::Y) {
                     self.redo();
@@ -553,10 +630,6 @@ impl LogicCraftApp {
                     for w in &mut self.sim.pages[page_idx].wires {
                         w.selected = true;
                     }
-                } else if ctrl && i.key_pressed(Key::C) {
-                    self.copy_selected();
-                } else if ctrl && i.key_pressed(Key::V) {
-                    self.paste_clipboard();
                 } else if ctrl && i.key_pressed(Key::G) {
                     self.show_oscope = !self.show_oscope;
                 } else if ctrl && i.key_pressed(Key::K) {
@@ -569,17 +642,27 @@ impl LogicCraftApp {
                     self.rotate_selected(90.0);
                 } else if i.key_pressed(Key::Escape) {
                     self.placing_gate_type = None;
+                    self.placing_multi_active = false;
                     self.wiring_from = None;
                     self.dragging_wire = None;
+                    self.dragging_wire_group.clear();
                 } else if i.key_pressed(Key::Space) {
                     self.sim.running = !self.sim.running;
                 }
             } else if i.key_pressed(Key::Escape) {
                 self.placing_gate_type = None;
+                self.placing_multi_active = false;
                 self.wiring_from = None;
                 self.dragging_wire = None;
+                self.dragging_wire_group.clear();
             }
         });
+        if do_copy {
+            self.copy_selected(ctx);
+        }
+        if do_paste {
+            self.paste_clipboard();
+        }
     }
 
     /// Draws an outer border and handles edge/corner window resizing when running in borderless mode.
@@ -760,6 +843,14 @@ impl eframe::App for LogicCraftApp {
             }
         }
 
+        // Advance cycling shortcut tips in the footer every 6 seconds
+        if self.last_tip_switch.elapsed() >= Duration::from_secs(6) {
+            let tips_len = self.locale.cycling_tips().len().max(1);
+            self.tip_index = (self.tip_index + 1) % tips_len;
+            self.last_tip_switch = Instant::now();
+        }
+        ctx.request_repaint_after(Duration::from_secs(6));
+
         self.handle_shortcuts(ctx);
         self.draw_top_bars(ctx);
         self.draw_status_bar(ctx);
@@ -817,24 +908,17 @@ impl eframe::App for LogicCraftApp {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_page_tab_close_and_rename() {
+    fn create_test_app() -> LogicCraftApp {
         let lib = GateLibrary::new();
-        let mut sim = CircuitSimulator::new(&lib);
-        sim.pages = vec![
-            CircuitPage::new("Page 1"),
-            CircuitPage::new("Page 2"),
-            CircuitPage::new("Page 3"),
-        ];
-        sim.current_page = 1;
-
-        let mut app = LogicCraftApp {
+        let sim = CircuitSimulator::new(&lib);
+        LogicCraftApp {
             lib,
             sim,
             locale: Locale::En,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             clipboard_gates: Vec::new(),
+            clipboard_wires: Vec::new(),
             dark_mode: true,
             show_gridlines: true,
             show_wire_conn: true,
@@ -850,6 +934,7 @@ mod tests {
             palette_search: String::new(),
             active_category: 0,
             placing_gate_type: None,
+            placing_multi_active: false,
             wiring_from: None,
             selection_box_start: None,
             dragging_gate_id: None,
@@ -857,6 +942,7 @@ mod tests {
             drag_initial_positions: Vec::new(),
             drag_initial_wire_mids: Vec::new(),
             dragging_wire: None,
+            dragging_wire_group: Vec::new(),
             dragging_kmap: None,
             dragging_kmap_func: None,
             drag_offset_world: [0.0, 0.0],
@@ -883,10 +969,23 @@ mod tests {
             custom_ic_json_buf: String::new(),
             custom_ic_feedback: None,
             last_sim_tick: Instant::now(),
+            tip_index: 0,
+            last_tip_switch: Instant::now(),
             frame_count: 0,
             screenshot_target: None,
             screenshot_requested: false,
-        };
+        }
+    }
+
+    #[test]
+    fn test_page_tab_close_and_rename() {
+        let mut app = create_test_app();
+        app.sim.pages = vec![
+            CircuitPage::new("Page 1"),
+            CircuitPage::new("Page 2"),
+            CircuitPage::new("Page 3"),
+        ];
+        app.sim.current_page = 1;
 
         // Test inline renaming
         app.editing_page_name = Some(1);
@@ -915,65 +1014,7 @@ mod tests {
         let tmp_path = tmp_dir.join("test_circuit_sample.lcc");
         std::fs::write(&tmp_path, xml).unwrap();
 
-        let mut app = LogicCraftApp {
-            lib: GateLibrary::new(),
-            sim: CircuitSimulator::new(&lib),
-            locale: Locale::En,
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
-            clipboard_gates: Vec::new(),
-            dark_mode: true,
-            show_gridlines: true,
-            show_wire_conn: true,
-            show_oscope: true,
-            show_memory_editor: false,
-            show_kmap_studio: false,
-            show_custom_ic_studio: false,
-            show_about_dialog: false,
-            show_update_dialog: false,
-            export_with_grid: true,
-            export_with_color: true,
-            canvas_size: Vec2::new(1000.0, 600.0),
-            palette_search: String::new(),
-            active_category: 0,
-            placing_gate_type: None,
-            wiring_from: None,
-            selection_box_start: None,
-            dragging_gate_id: None,
-            drag_anchor_world: [0.0, 0.0],
-            drag_initial_positions: Vec::new(),
-            drag_initial_wire_mids: Vec::new(),
-            dragging_wire: None,
-            dragging_kmap: None,
-            dragging_kmap_func: None,
-            drag_offset_world: [0.0, 0.0],
-            drag_snapshot_saved: false,
-            memory_edit_gate_id: None,
-            new_channel_wire_id: 0,
-            connector_name_draft: String::new(),
-            connector_edit_gate_id: None,
-            connector_warning: None,
-            status_message: String::new(),
-            current_file_path: None,
-            editing_page_name: None,
-            page_name_draft: String::new(),
-            custom_ic_tab: 0,
-            custom_ic_name: String::new(),
-            custom_ic_label: String::new(),
-            custom_ic_desc: String::new(),
-            custom_ic_inputs: String::new(),
-            custom_ic_outputs: String::new(),
-            custom_ic_state_bits: String::new(),
-            custom_ic_clock_pin: String::new(),
-            custom_ic_reset_pin: String::new(),
-            custom_ic_equations: Vec::new(),
-            custom_ic_json_buf: String::new(),
-            custom_ic_feedback: None,
-            last_sim_tick: Instant::now(),
-            frame_count: 0,
-            screenshot_target: None,
-            screenshot_requested: false,
-        };
+        let mut app = create_test_app();
 
         assert!(app.load_circuit_from_path(&tmp_path));
         assert_eq!(app.current_file_path, Some(tmp_path.clone()));
@@ -1020,5 +1061,79 @@ mod tests {
         assert_eq!(restored_km.values[7], 2);
         assert!(restored_km.pinned_on_canvas);
         assert_eq!(restored_km.canvas_pos, [12.5, -45.0]);
+    }
+
+    #[test]
+    fn test_copy_and_paste_group() {
+        let mut app = create_test_app();
+        let ctx = egui::Context::default();
+        app.sim.pages[0].gates.clear();
+        app.sim.pages[0].wires.clear();
+
+        let def_and = app.lib.get("AA_AND2").unwrap().clone();
+        let def_led = app.lib.get("GA_LED").unwrap().clone();
+        let mut g1 = GateInstance::new(10, &def_and, [0.0, 0.0]);
+        g1.selected = true;
+        let mut g2 = GateInstance::new(11, &def_led, [10.0, 0.0]);
+        g2.selected = true;
+        app.sim.pages[0].gates.push(g1);
+        app.sim.pages[0].gates.push(g2);
+        app.sim.next_gate_id = 12;
+        app.sim.connect_pins(&app.lib, 0, 10, "OUT", 11, "IN_0", "AND_TO_LED");
+
+        app.copy_selected(&ctx);
+        assert_eq!(app.clipboard_gates.len(), 2);
+        assert_eq!(app.clipboard_wires.len(), 1);
+
+        app.paste_clipboard();
+        assert_eq!(app.sim.pages[0].gates.len(), 4);
+        assert_eq!(app.sim.pages[0].wires.len(), 2);
+        let pasted_wire = &app.sim.pages[0].wires[1];
+        assert_ne!(pasted_wire.endpoints[0].gate_id, 10);
+        assert_ne!(pasted_wire.endpoints[1].gate_id, 11);
+    }
+
+    #[test]
+    fn test_to_from_connectors_not_memory() {
+        let lib = GateLibrary::new();
+        let from_inst = GateInstance::new(1, lib.get("DA_FROM").unwrap(), [0.0, 0.0]);
+        let to_inst = GateInstance::new(2, lib.get("DE_TO").unwrap(), [5.0, 0.0]);
+        let ram_inst = GateInstance::new(3, lib.get("AA_RAM_4x4").unwrap(), [10.0, 0.0]);
+        let rom_inst = GateInstance::new(4, lib.get("BA_ROM_4x4").unwrap(), [15.0, 0.0]);
+
+        assert!(!from_inst.is_memory_device());
+        assert!(!to_inst.is_memory_device());
+        assert!(ram_inst.is_memory_device());
+        assert!(rom_inst.is_memory_device());
+    }
+
+    #[test]
+    fn test_vertical_wire_custom_mid_x() {
+        let lib = GateLibrary::new();
+        let mut sim = CircuitSimulator::new(&lib);
+        sim.pages[0].gates.clear();
+        sim.pages[0].wires.clear();
+
+        let g1 = GateInstance::new(1, lib.get("AA_AND2").unwrap(), [-10.0, 5.0]);
+        let g2 = GateInstance::new(2, lib.get("GA_LED").unwrap(), [10.0, -5.0]);
+        sim.pages[0].gates.push(g1);
+        sim.pages[0].gates.push(g2);
+        let wid = sim.connect_pins(&lib, 0, 1, "OUT", 2, "IN_0", "W");
+
+        sim.pages[0].wires[0].custom_mid_x = Some(3.5);
+        sim.pages[0].wires[0].custom_mid_y = None;
+        sim.rebuild_wire_geometry(&lib, 0);
+
+        let w = &sim.pages[0].wires.iter().find(|w| w.id == wid).unwrap();
+        assert_eq!(w.points.len(), 4);
+        assert!((w.points[1][0] - 3.5).abs() < 1e-4);
+        assert!((w.points[2][0] - 3.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_cycling_tips_all_locales() {
+        for loc in Locale::ALL {
+            assert!(!loc.cycling_tips().is_empty());
+        }
     }
 }

@@ -349,12 +349,16 @@ impl LogicCraftApp {
                 let pointer_pos = resp
                     .interact_pointer_pos()
                     .or_else(|| ui.input(|i| i.pointer.hover_pos()));
+                let press_pos = ui.input(|i| i.pointer.press_origin()).or(pointer_pos);
 
                 // Draw Wires & detect hovered/draggable wire segments
                 let mut hovered_wire_seg: Option<(u32, bool, Pos2)> = None;
+                let mut drag_start_wire_seg: Option<(u32, bool, Pos2)> = None;
                 {
                     let page = &self.sim.pages[page_idx];
                     let px_per_world = 1.0 / page.zoom_world_per_px.max(0.01);
+                    let mut best_hover_score = 8.5_f32;
+                    let mut best_press_score = 9.5_f32;
                     for w in &page.wires {
                         let col = if w.selected {
                             p.cyan
@@ -368,17 +372,37 @@ impl LogicCraftApp {
                         } else {
                             SINGLE_WIRE_WIDTH + 1.0
                         };
-                        for seg in w.points.windows(2) {
+                        let num_segs = w.points.len().saturating_sub(1);
+                        for (seg_idx, seg) in w.points.windows(2).enumerate() {
                             let p0 = Self::world_to_screen(canvas_rect, page, seg[0]);
                             let p1 = Self::world_to_screen(canvas_rect, page, seg[1]);
                             painter.line_segment([p0, p1], Stroke::new(width, col));
 
+                            let seg_len = p0.distance(p1);
+                            if seg_len < 2.0 {
+                                continue;
+                            }
+                            let is_vert = (p0.x - p1.x).abs() <= (p0.y - p1.y).abs();
+                            let mid = Pos2::new((p0.x + p1.x) * 0.5, (p0.y + p1.y) * 0.5);
+                            // Prefer middle trunk segment or vertical segment near corners
+                            let priority_bonus = if (num_segs == 3 && seg_idx == 1) || is_vert {
+                                1.5_f32
+                            } else {
+                                0.0_f32
+                            };
+
                             if let Some(mp) = pointer_pos {
                                 let dist = dist_to_segment(mp, p0, p1);
-                                if dist <= 6.5 {
-                                    let is_vert = (p0.x - p1.x).abs() < (p0.y - p1.y).abs();
-                                    let mid = Pos2::new((p0.x + p1.x) * 0.5, (p0.y + p1.y) * 0.5);
+                                if dist <= 8.5 && (dist - priority_bonus) < best_hover_score {
+                                    best_hover_score = dist - priority_bonus;
                                     hovered_wire_seg = Some((w.id, is_vert, mid));
+                                }
+                            }
+                            if let Some(pp) = press_pos {
+                                let dist = dist_to_segment(pp, p0, p1);
+                                if dist <= 9.5 && (dist - priority_bonus) < best_press_score {
+                                    best_press_score = dist - priority_bonus;
+                                    drag_start_wire_seg = Some((w.id, is_vert, mid));
                                 }
                             }
                         }
@@ -407,6 +431,8 @@ impl LogicCraftApp {
             let mut hovered_pin_info: Option<(PinRef, Pos2, LogicState)> = None;
             let mut clicked_gate_id: Option<u32> = None;
             let mut toggled_gate_action: Option<(u32, u16)> = None;
+            let mut group_sel_rect: Option<Rect> = None;
+            let mut selected_gate_ids: Vec<u32> = Vec::new();
 
             {
                 let page = &self.sim.pages[page_idx];
@@ -425,6 +451,14 @@ impl LogicCraftApp {
                     let half_px = Vec2::new(hw * px_per_world, hh * px_per_world);
                     let gate_rect = Rect::from_center_size(center_s, half_px * 2.0);
 
+                    if g.selected {
+                        selected_gate_ids.push(g.id);
+                        group_sel_rect = Some(match group_sel_rect {
+                            Some(r) => r.union(gate_rect),
+                            None => gate_rect,
+                        });
+                    }
+
                     draw_gate_on_canvas(
                         &painter,
                         canvas_rect,
@@ -435,7 +469,7 @@ impl LogicCraftApp {
                         self.show_wire_conn,
                     );
 
-                    // Check pin hover / click
+                    // Check pin hover / click (only on click, never hijack dragging!)
                     for pin in def.inputs.iter().chain(def.outputs.iter()) {
                         let pw = g.pin_world_pos(pin.pos);
                         let ps = Self::world_to_screen(canvas_rect, page, pw);
@@ -454,7 +488,7 @@ impl LogicCraftApp {
                                     ps,
                                     st,
                                 ));
-                                if resp.clicked() || resp.drag_started() {
+                                if resp.clicked() {
                                     clicked_pin = Some(PinRef {
                                         gate_id: g.id,
                                         pin_name: pin.name.clone(),
@@ -465,9 +499,9 @@ impl LogicCraftApp {
                     }
 
                     // Check gate body click / interactive toggle / 4x4 hex keypad button click
-                    if let Some(mp) = pointer_pos {
-                        if gate_rect.contains(mp) && hovered_pin_info.is_none() {
-                            if resp.clicked() {
+                    if resp.clicked() {
+                        if let Some(mp) = pointer_pos {
+                            if gate_rect.contains(mp) && hovered_pin_info.is_none() {
                                 clicked_gate_id = Some(g.id);
                                 if g.type_name == "AA_TOGGLE" {
                                     let cur = g
@@ -485,9 +519,45 @@ impl LogicCraftApp {
                                         toggled_gate_action = Some((g.id, hex_key));
                                     }
                                 }
-                            } else if resp.drag_started_by(egui::PointerButton::Primary) {
-                                clicked_gate_id = Some(g.id);
                             }
+                        }
+                    } else if resp.drag_started_by(egui::PointerButton::Primary) {
+                        let hit_drag_gate = press_pos
+                            .map_or(false, |pp| gate_rect.expand(2.0).contains(pp))
+                            || pointer_pos.map_or(false, |mp| gate_rect.contains(mp));
+                        if hit_drag_gate {
+                            clicked_gate_id = Some(g.id);
+                        }
+                    }
+                }
+            }
+
+            // When multiple components are selected, draw a group bounding box and allow dragging anywhere inside the group
+            if selected_gate_ids.len() > 1 {
+                if let Some(g_rect) = group_sel_rect {
+                    let group_box = g_rect.expand(8.0);
+                    painter.rect_stroke(
+                        group_box,
+                        0.0,
+                        Stroke::new(
+                            1.0,
+                            Color32::from_rgba_unmultiplied(p.cyan.r(), p.cyan.g(), p.cyan.b(), 140),
+                        ),
+                    );
+                    crate::theme::draw_corner_brackets(
+                        &painter,
+                        group_box,
+                        10.0,
+                        Stroke::new(2.0, p.cyan),
+                    );
+                    if resp.drag_started_by(egui::PointerButton::Primary)
+                        && clicked_gate_id.is_none()
+                    {
+                        let inside_group = press_pos
+                            .map_or(false, |pp| group_box.contains(pp))
+                            || pointer_pos.map_or(false, |mp| group_box.contains(mp));
+                        if inside_group {
+                            clicked_gate_id = selected_gate_ids.first().copied();
                         }
                     }
                 }
@@ -619,9 +689,22 @@ impl LogicCraftApp {
                 });
             }
 
-            // Handle placing a new gate on canvas click
+            // Handle placing a new gate on canvas click (hold Ctrl to place multiple)
+            let active_wire_seg = if resp.drag_started_by(egui::PointerButton::Primary) {
+                drag_start_wire_seg.or(hovered_wire_seg)
+            } else {
+                hovered_wire_seg
+            };
+
             if let Some(place_type) = self.placing_gate_type.clone() {
-                if let Some(mp) = pointer_pos {
+                let ctrl_held = ui.input(|i| i.modifiers.ctrl || i.modifiers.command);
+                if self.placing_multi_active && !ctrl_held {
+                    self.placing_gate_type = None;
+                    self.placing_multi_active = false;
+                } else if ui.input(|i| i.pointer.button_clicked(egui::PointerButton::Secondary)) {
+                    self.placing_gate_type = None;
+                    self.placing_multi_active = false;
+                } else if let Some(mp) = pointer_pos {
                     let page = &self.sim.pages[page_idx];
                     let wpos = Self::screen_to_world(canvas_rect, page, mp);
                     let snapped = [
@@ -637,7 +720,9 @@ impl LogicCraftApp {
                         8.0,
                         Stroke::new(1.8_f32, p.cyan),
                     );
-                    if resp.clicked() && !self.sim.locked {
+                    if (resp.clicked() || (resp.drag_stopped() && resp.hovered()))
+                        && !self.sim.locked
+                    {
                         if let Some(def) = self.lib.get(&place_type).cloned() {
                             self.save_undo_snapshot();
                             let id = self.sim.next_gate_id;
@@ -647,7 +732,9 @@ impl LogicCraftApp {
                                 let unique = self.sim.next_unique_from_name();
                                 inst.lparams.insert("JUNCTION_ID".into(), unique);
                             } else if inst.type_name == "DE_TO" {
-                                if let Some(last_from) = self.sim.from_connector_names().last().cloned() {
+                                if let Some(last_from) =
+                                    self.sim.from_connector_names().last().cloned()
+                                {
                                     inst.lparams.insert("JUNCTION_ID".into(), last_from);
                                 }
                             }
@@ -659,7 +746,13 @@ impl LogicCraftApp {
                             }
                             inst.selected = true;
                             self.sim.pages[page_idx].gates.push(inst);
-                            self.placing_gate_type = None;
+                            if ctrl_held {
+                                self.placing_gate_type = Some(place_type);
+                                self.placing_multi_active = true;
+                            } else {
+                                self.placing_gate_type = None;
+                                self.placing_multi_active = false;
+                            }
                             self.status_message = format!(
                                 "Placed {} (ID #{id}).",
                                 self.locale.gate_caption(&def.caption)
@@ -769,7 +862,7 @@ impl LogicCraftApp {
                             }
                         }
                     }
-                    if let Some(mp) = pointer_pos {
+                    if let Some(mp) = press_pos.or(pointer_pos) {
                         let wpos = Self::screen_to_world(canvas_rect, page, mp);
                         self.dragging_gate_id = Some(gid);
                         self.drag_anchor_world = wpos;
@@ -781,6 +874,13 @@ impl LogicCraftApp {
                             .collect();
                         let sel_ids: Vec<u32> =
                             self.drag_initial_positions.iter().map(|&(id, _)| id).collect();
+                        for w in &mut page.wires {
+                            if !w.endpoints.is_empty()
+                                && w.endpoints.iter().all(|ep| sel_ids.contains(&ep.gate_id))
+                            {
+                                w.selected = true;
+                            }
+                        }
                         self.drag_initial_wire_mids = page
                             .wires
                             .iter()
@@ -808,7 +908,7 @@ impl LogicCraftApp {
                         }
                     }
                 }
-            } else if let Some((wid, is_vert, _)) = hovered_wire_seg {
+            } else if let Some((wid, is_vert, _)) = active_wire_seg {
                 if resp.clicked() || resp.drag_started_by(egui::PointerButton::Primary) {
                     let page = &mut self.sim.pages[page_idx];
                     for g in &mut page.gates {
@@ -819,6 +919,54 @@ impl LogicCraftApp {
                     }
                     if resp.drag_started_by(egui::PointerButton::Primary) && !self.sim.locked {
                         self.dragging_wire = Some((wid, is_vert));
+                        let mut group = vec![wid];
+                        if let Some(target_w) = page.wires.iter().find(|w| w.id == wid) {
+                            let target_eps = target_w.endpoints.clone();
+                            let target_coord = target_w.points.windows(2).find_map(|seg| {
+                                let a = seg[0];
+                                let b = seg[1];
+                                let dx = (b[0] - a[0]).abs();
+                                let dy = (b[1] - a[1]).abs();
+                                if dx < 0.01 && dy < 0.01 {
+                                    return None;
+                                }
+                                let sv = dx < dy;
+                                if sv == is_vert {
+                                    Some(if is_vert { a[0] } else { a[1] })
+                                } else {
+                                    None
+                                }
+                            });
+                            if let Some(tc) = target_coord {
+                                for w in &page.wires {
+                                    if w.id != wid
+                                        && w.endpoints.iter().any(|ep| target_eps.contains(ep))
+                                    {
+                                        let shares_trunk = w.points.windows(2).any(|seg| {
+                                            let a = seg[0];
+                                            let b = seg[1];
+                                            let dx = (b[0] - a[0]).abs();
+                                            let dy = (b[1] - a[1]).abs();
+                                            if dx < 0.01 && dy < 0.01 {
+                                                return false;
+                                            }
+                                            let sv = dx < dy;
+                                            let c = if is_vert { a[0] } else { a[1] };
+                                            sv == is_vert && (c - tc).abs() < 0.05
+                                        });
+                                        if shares_trunk {
+                                            group.push(w.id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        for w in &mut page.wires {
+                            if group.contains(&w.id) {
+                                w.selected = true;
+                            }
+                        }
+                        self.dragging_wire_group = group;
                         self.drag_snapshot_saved = false;
                     }
                 }
@@ -828,7 +976,7 @@ impl LogicCraftApp {
             {
                 let space_held = ui.input(|i| i.key_down(Key::Space));
                 if !space_held {
-                    self.selection_box_start = pointer_pos;
+                    self.selection_box_start = press_pos.or(pointer_pos);
                 }
             } else if resp.clicked() {
                 self.wiring_from = None;
@@ -910,17 +1058,29 @@ impl LogicCraftApp {
                         }
                         let page = &mut self.sim.pages[page_idx];
                         let wpos = Self::screen_to_world(canvas_rect, page, mp);
-                        if let Some(w) = page.wires.iter_mut().find(|w| w.id == wid) {
-                            if is_vert {
-                                w.custom_mid_x = Some(CircuitSimulator::snap_to_grid(wpos[0]));
-                            } else {
-                                w.custom_mid_y = Some(CircuitSimulator::snap_to_grid(wpos[1]));
+                        let target_ids = if self.dragging_wire_group.is_empty() {
+                            vec![wid]
+                        } else {
+                            self.dragging_wire_group.clone()
+                        };
+                        let snapped_x = CircuitSimulator::snap_to_grid(wpos[0]);
+                        let snapped_y = CircuitSimulator::snap_to_grid(wpos[1]);
+                        for w in &mut page.wires {
+                            if target_ids.contains(&w.id) {
+                                if is_vert {
+                                    w.custom_mid_x = Some(snapped_x);
+                                    w.custom_mid_y = None;
+                                } else {
+                                    w.custom_mid_y = Some(snapped_y);
+                                    w.custom_mid_x = None;
+                                }
                             }
                         }
                         self.sim.rebuild_wire_geometry(&self.lib, page_idx);
                     }
                 } else if resp.drag_stopped() {
                     self.dragging_wire = None;
+                    self.dragging_wire_group.clear();
                 }
             } else if let Some(start_s) = self.selection_box_start {
                 if resp.dragged_by(egui::PointerButton::Primary) {
@@ -1015,41 +1175,6 @@ impl LogicCraftApp {
                 let scale = page.zoom_world_per_px;
                 page.pan_world[0] -= delta.x * scale;
                 page.pan_world[1] += delta.y * scale;
-            }
-
-            // Tactical CAD HUD Telemetry Overlay (top-right of workspace)
-            {
-                let page = &self.sim.pages[page_idx];
-                let cursor_w = pointer_pos
-                    .map(|mp| Self::screen_to_world(canvas_rect, page, mp))
-                    .unwrap_or(page.pan_world);
-                let zoom_pct = (crate::mechanics::DEFAULT_VIEW_ZOOM / page.zoom_world_per_px) * 100.0;
-                let hud_txt = format!(
-                    "CAD // X:{:+06.1} Y:{:+06.1} | ZOOM:{:03.0}% | GRID:0.5",
-                    cursor_w[0], cursor_w[1], zoom_pct
-                );
-                let hud_w = (hud_txt.len() as f32 * 6.6) + 14.0;
-                let hud_rect = Rect::from_min_size(
-                    Pos2::new(canvas_rect.right() - hud_w - 8.0, canvas_rect.top() + 8.0),
-                    Vec2::new(hud_w, 20.0),
-                );
-                painter.rect_filled(hud_rect, 0.0, p.bg_secondary);
-                painter.rect_stroke(hud_rect, 0.0, Stroke::new(1.0, p.border_secondary));
-                painter.rect_filled(
-                    Rect::from_min_max(
-                        hud_rect.left_top(),
-                        Pos2::new(hud_rect.left() + 3.0, hud_rect.bottom()),
-                    ),
-                    0.0,
-                    p.cyan,
-                );
-                painter.text(
-                    Pos2::new(hud_rect.left() + 9.0, hud_rect.center().y),
-                    Align2::LEFT_CENTER,
-                    hud_txt,
-                    FontId::new(10.5, FontFamily::Monospace),
-                    p.text_secondary,
-                );
             }
         });
     }

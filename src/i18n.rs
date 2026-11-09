@@ -68,6 +68,62 @@ impl Locale {
         }
     }
 
+    /// Cycling keyboard shortcut and workflow tips displayed in the footer status bar.
+    pub fn cycling_tips(self) -> &'static [&'static str] {
+        match self {
+            Self::Pt => &[
+                "💡 Dica: Prima Ctrl+C para copiar e Ctrl+V para colar componentes selecionados",
+                "💡 Dica: Mantenha Ctrl premido ao clicar no esquema para adicionar vários componentes seguidos",
+                "💡 Dica: Arraste numa área vazia para selecionar um grupo e arraste o grupo para o mover",
+                "💡 Dica: Prima R para rodar os componentes selecionados 90° ou Del para eliminar",
+                "💡 Dica: Prima Espaço para Executar/Pausar a simulação, ou Ctrl+Z / Ctrl+Y para Desfazer/Refazer",
+                "💡 Dica: Prima Ctrl+G para o Osciloscópio, Ctrl+K para o Mapa de Karnaugh ou Ctrl+T para Nova Página",
+                "💡 Dica: Arraste qualquer segmento vertical ou horizontal de um fio para ajustar o traçado",
+                "💡 Dica: Use a roda do rato para Zoom ou arraste com o botão direito/meio para mover a vista",
+            ],
+            Self::Es => &[
+                "💡 Consejo: Pulsa Ctrl+C para copiar y Ctrl+V para pegar componentes seleccionados",
+                "💡 Consejo: Mantén pulsado Ctrl al hacer clic en el lienzo para colocar varios componentes seguidos",
+                "💡 Consejo: Arrastra en un área vacía para seleccionar un grupo y arrástralo para moverlo",
+                "💡 Consejo: Pulsa R para rotar 90° los componentes seleccionados o Supr para eliminar",
+                "💡 Consejo: Pulsa Espacio para Ejecutar/Pausar la simulación, o Ctrl+Z / Ctrl+Y para Deshacer/Rehacer",
+                "💡 Consejo: Pulsa Ctrl+G para Osciloscopio, Ctrl+K para Mapa de Karnaugh o Ctrl+T para Nueva Pestaña",
+                "💡 Consejo: Arrastra cualquier segmento vertical u horizontal de un cable para ajustar su ruta",
+                "💡 Consejo: Usa la rueda del ratón para Zoom o arrastra con el botón derecho/central para desplazar",
+            ],
+            Self::Fr => &[
+                "💡 Astuce : Appuyez sur Ctrl+C pour copier et Ctrl+V pour coller les composants sélectionnés",
+                "💡 Astuce : Maintenez Ctrl enfoncé en cliquant pour placer plusieurs composants du même type",
+                "💡 Astuce : Glissez sur une zone vide pour sélectionner un groupe, puis glissez le groupe pour le déplacer",
+                "💡 Astuce : Appuyez sur R pour pivoter de 90° ou Suppr pour supprimer la sélection",
+                "💡 Astuce : Appuyez sur Espace pour Lancer/Arrêter la simulation, ou Ctrl+Z / Ctrl+Y pour Annuler/Rétablir",
+                "💡 Astuce : Ctrl+G pour l'Oscilloscope, Ctrl+K pour le Studio Karnaugh ou Ctrl+T pour un nouvel onglet",
+                "💡 Astuce : Faites glisser n'importe quel segment vertical ou horizontal d'un fil pour l'ajuster",
+                "💡 Astuce : Molette de la souris pour zoomer, ou clic droit/milieu glissé pour déplacer la vue",
+            ],
+            Self::De => &[
+                "💡 Tipp: Drücken Sie Strg+C zum Kopieren und Strg+V zum Einfügen ausgewählter Komponenten",
+                "💡 Tipp: Halten Sie Strg beim Klicken gedrückt, um mehrere gleiche Komponenten nacheinander zu platzieren",
+                "💡 Tipp: Ziehen Sie über eine freie Fläche zur Gruppenauswahl und ziehen Sie die Gruppe zum Verschieben",
+                "💡 Tipp: Drücken Sie R zum Drehen um 90° oder Entf zum Löschen der Auswahl",
+                "💡 Tipp: Leertaste für Start/Stopp der Simulation, oder Strg+Z / Strg+Y für Rückgängig/Wiederholen",
+                "💡 Tipp: Strg+G für Oszilloskop, Strg+K für Karnaugh-Studio oder Strg+T für eine neue Seite",
+                "💡 Tipp: Ziehen Sie ein beliebiges vertikales oder horizontales Leitungssegment zum Anpassen",
+                "💡 Tipp: Mausrad zum Zoomen oder mit rechter/mittlerer Maustaste ziehen zum Verschieben der Ansicht",
+            ],
+            Self::En => &[
+                "💡 Tip: Press Ctrl+C to copy and Ctrl+V to paste selected components",
+                "💡 Tip: Keep Ctrl pressed while clicking on the canvas to place multiple components of the same type",
+                "💡 Tip: Drag on empty canvas to select a group of components, then drag the group to move it",
+                "💡 Tip: Press R to rotate selected components 90°, or Del / Backspace to delete",
+                "💡 Tip: Press Space to Run / Halt simulation, or Ctrl+Z / Ctrl+Y for Undo / Redo",
+                "💡 Tip: Press Ctrl+G for O-Scope, Ctrl+K for K-Map Studio, or Ctrl+T for a new Page tab",
+                "💡 Tip: Drag any vertical or horizontal wire segment to adjust its routing",
+                "💡 Tip: Scroll mouse wheel to zoom, or drag with Middle / Right mouse button to pan",
+            ],
+        }
+    }
+
     /// Translates a gate library category title while preserving its numeric prefix.
     pub fn category_name(self, raw: &str) -> String {
         if self == Self::En {

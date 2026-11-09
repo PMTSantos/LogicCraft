@@ -148,7 +148,7 @@ impl LogicCraftApp {
                         }
                         ui.separator();
                         if ui.button(tr.edit_copy).clicked() {
-                            self.copy_selected();
+                            self.copy_selected(ctx);
                             ui.close_menu();
                         }
                         if ui.button(tr.edit_paste).clicked() {
@@ -354,6 +354,7 @@ impl LogicCraftApp {
                             .clicked()
                         {
                             self.placing_gate_type = Some("DA_FROM".to_string());
+                            self.placing_multi_active = false;
                         }
                         let placing_to = self.placing_gate_type.as_deref() == Some("DE_TO");
                         if crate::theme::tool_button(ui, tr.tb_to, placing_to, p.purple)
@@ -361,6 +362,7 @@ impl LogicCraftApp {
                             .clicked()
                         {
                             self.placing_gate_type = Some("DE_TO".to_string());
+                            self.placing_multi_active = false;
                         }
 
                         crate::theme::group_separator(ui);
@@ -572,6 +574,13 @@ impl LogicCraftApp {
     pub fn draw_status_bar(&mut self, ctx: &egui::Context) {
         let tr = self.locale.tr();
         let p = crate::theme::palette(self.dark_mode);
+        let tips = self.locale.cycling_tips();
+        let cur_tip = tips
+            .get(self.tip_index % tips.len().max(1))
+            .copied()
+            .unwrap_or("");
+        let mut advance_tip = false;
+
         egui::TopBottomPanel::bottom("status_bar")
             .exact_height(26.0)
             .frame(crate::theme::toolbar_frame(self.dark_mode))
@@ -585,7 +594,21 @@ impl LogicCraftApp {
                     }
                     crate::theme::group_separator(ui);
 
-                    // Render right telemetry first so it is cleanly reserved and never truncated
+                    // Cycling shortcut & workflow tip right after RUN / HALT
+                    let tip_resp = ui.add(
+                        egui::Label::new(
+                            RichText::new(cur_tip)
+                                .font(FontId::new(10.5, FontFamily::Monospace))
+                                .color(p.text_secondary),
+                        )
+                        .truncate(true)
+                        .sense(Sense::click()),
+                    );
+                    if tip_resp.clicked() {
+                        advance_tip = true;
+                    }
+
+                    // Render right telemetry so it is cleanly reserved and never truncated
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
                             RichText::new(format!(
@@ -618,18 +641,14 @@ impl LogicCraftApp {
                                     .strong(),
                             );
                         }
-                        crate::theme::group_separator(ui);
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(&self.status_message)
-                                    .font(FontId::new(10.5, FontFamily::Monospace))
-                                    .color(p.text_secondary),
-                            )
-                            .truncate(true),
-                        );
                     });
                 });
             });
+
+        if advance_tip {
+            self.tip_index = (self.tip_index + 1) % tips.len().max(1);
+            self.last_tip_switch = std::time::Instant::now();
+        }
     }
 
     pub fn draw_oscope_panel(&mut self, ctx: &egui::Context) {
@@ -886,6 +905,7 @@ impl LogicCraftApp {
                         crate::theme::status_pill(ui, &format!("PLACING: {placing}"), p.cyan);
                         if ui.small_button(tr.palette_cancel).clicked() {
                             self.placing_gate_type = None;
+                            self.placing_multi_active = false;
                         }
                     });
                 }
@@ -1021,6 +1041,7 @@ impl LogicCraftApp {
 
                                 if resp.clicked() {
                                     self.placing_gate_type = Some(gate.type_name.clone());
+                                    self.placing_multi_active = false;
                                     self.status_message = format!(
                                         "{}: '{}'",
                                         tr.palette_placing, localized_cap
@@ -1350,7 +1371,7 @@ impl LogicCraftApp {
                 }
             }
 
-            if g_snap.type_name.contains("RAM") || g_snap.type_name.contains("ROM") {
+            if g_snap.is_memory_device() {
                 if crate::theme::tool_button(ui, tr.inspector_edit_ram_rom, false, p.purple).clicked() {
                     self.memory_edit_gate_id = Some(g_snap.id);
                     self.show_memory_editor = true;

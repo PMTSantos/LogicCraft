@@ -81,6 +81,11 @@ impl GateInstance {
             },
         );
     }
+
+    /// Returns `true` only if this component is an actual RAM or ROM memory IC (`_RAM_` / `_ROM_`).
+    pub fn is_memory_device(&self) -> bool {
+        self.type_name.contains("_RAM_") || self.type_name.contains("_ROM_")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -751,54 +756,58 @@ impl CircuitSimulator {
                     .unwrap_or_else(|| *w.points.last().unwrap_or(&[0.0, 0.0]));
                 let src_pin = w.endpoints.first().cloned();
 
-                if let Some(mid_y) = w.custom_mid_y {
+                if let Some(mid_x) = w.custom_mid_x {
+                    let y_min = p1[1].min(p2[1]);
+                    let y_max = p1[1].max(p2[1]);
+                    occupied_lanes.push((mid_x, y_min, y_max, src_pin));
+                    updated_points.push((
+                        vec![p1, [mid_x, p1[1]], [mid_x, p2[1]], p2],
+                        Vec::new(),
+                    ));
+                } else if let Some(mid_y) = w.custom_mid_y {
                     updated_points.push((
                         vec![p1, [p1[0], mid_y], [p2[0], mid_y], p2],
                         Vec::new(),
                     ));
-                } else if (p1[1] - p2[1]).abs() < 0.01 && w.custom_mid_x.is_none() {
+                } else if (p1[1] - p2[1]).abs() < 0.01 {
                     updated_points.push((vec![p1, p2], Vec::new()));
-                } else if (p1[0] - p2[0]).abs() < 0.01 && w.custom_mid_x.is_none() {
+                } else if (p1[0] - p2[0]).abs() < 0.01 {
                     updated_points.push((vec![p1, p2], Vec::new()));
                 } else {
-                    let base_mid_x = w
-                        .custom_mid_x
-                        .unwrap_or_else(|| Self::snap_to_grid((p1[0] + p2[0]) * 0.5));
+                    let base_mid_x = Self::snap_to_grid((p1[0] + p2[0]) * 0.5);
                     let y_min = p1[1].min(p2[1]);
                     let y_max = p1[1].max(p2[1]);
 
                     let mut chosen_x = base_mid_x;
-                    if w.custom_mid_x.is_none() {
-                        // If another wire from the SAME source pin already has a lane near base_mid_x, share it
-                        if let Some(&(existing_x, _, _, _)) = occupied_lanes.iter().find(|&&(lx, _, _, ref sp)| {
-                            *sp == src_pin && (lx - base_mid_x).abs() <= 2.5
-                        }) {
-                            chosen_x = existing_x;
-                        } else {
-                            // Otherwise find a lane near base_mid_x that doesn't collide with a different net
-                            let x_min_bound = p1[0].min(p2[0]) + 0.5;
-                            let x_max_bound = p1[0].max(p2[0]) - 0.5;
-                            for step in 0..16i32 {
-                                let delta = if step == 0 {
-                                    0.0
-                                } else if step % 2 == 1 {
-                                    ((step + 1) / 2) as f32 * 0.6
-                                } else {
-                                    -(step / 2) as f32 * 0.6
-                                };
-                                let cand = base_mid_x + delta;
-                                if x_min_bound < x_max_bound && (cand < x_min_bound || cand > x_max_bound) {
-                                    continue;
-                                }
-                                let collides = occupied_lanes.iter().any(|&(lx, ly0, ly1, ref sp)| {
-                                    *sp != src_pin
-                                        && (lx - cand).abs() < 0.45
-                                        && !(y_max < ly0 - 0.1 || y_min > ly1 + 0.1)
-                                });
-                                if !collides {
-                                    chosen_x = cand;
-                                    break;
-                                }
+                    // If another wire from the SAME source pin already has a lane near base_mid_x, share it
+                    if let Some(&(existing_x, _, _, _)) = occupied_lanes.iter().find(|&&(lx, _, _, ref sp)| {
+                        *sp == src_pin && (lx - base_mid_x).abs() <= 2.5
+                    }) {
+                        chosen_x = existing_x;
+                    } else {
+                        // Otherwise find a lane near base_mid_x that doesn't collide with a different net
+                        let x_min_bound = p1[0].min(p2[0]) + 0.5;
+                        let x_max_bound = p1[0].max(p2[0]) - 0.5;
+                        for step in 0..16i32 {
+                            let delta = if step == 0 {
+                                0.0
+                            } else if step % 2 == 1 {
+                                ((step + 1) / 2) as f32 * 0.6
+                            } else {
+                                -(step / 2) as f32 * 0.6
+                            };
+                            let cand = base_mid_x + delta;
+                            if x_min_bound < x_max_bound && (cand < x_min_bound || cand > x_max_bound) {
+                                continue;
+                            }
+                            let collides = occupied_lanes.iter().any(|&(lx, ly0, ly1, ref sp)| {
+                                *sp != src_pin
+                                    && (lx - cand).abs() < 0.45
+                                    && !(y_max < ly0 - 0.1 || y_min > ly1 + 0.1)
+                            });
+                            if !collides {
+                                chosen_x = cand;
+                                break;
                             }
                         }
                     }

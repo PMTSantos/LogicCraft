@@ -23,7 +23,8 @@ Modern cross-platform digital logic circuit builder, 5-state logic simulator, Qu
 7. [Native Application Updater](#native-application-updater)
 8. [GitHub Releases & Versioning Workflow](#github-releases--versioning-workflow)
 9. [Persistent Settings](#persistent-settings)
-10. [Repository Structure](#repository-structure)
+10. [Changelog](#changelog)
+11. [Repository Structure](#repository-structure)
 
 ---
 
@@ -120,9 +121,9 @@ This script builds release binaries and packages all Windows distribution format
 powershell -ExecutionPolicy Bypass -File packaging\windows\build_installer.ps1
 ```
 Output files in `target\installer\`:
-- `LogicCraft-v1.0.2-windows-x64.zip` — Standalone portable archive with updater and installer scripts
-- `LogicCraft-1.0.2-x64.msi` — Windows Installer package (when WiX or `cargo-packager` is installed)
-- `LogicCraft-Setup-1.0.2-x64.exe` — Inno Setup executable (when `iscc.exe` is installed)
+- `LogicCraft-v1.0.3-windows-x64.zip` — Standalone portable archive with updater and installer scripts
+- `LogicCraft-1.0.3-x64.msi` — Windows Installer package (when WiX or `cargo-packager` is installed)
+- `LogicCraft-Setup-1.0.3-x64.exe` — Inno Setup executable (when `iscc.exe` is installed)
 
 ### 2. Direct User Installation Script
 Installs LogicCraft CAD directly to `%LOCALAPPDATA%\Programs\LogicCraft`, registers the `.lcc` file association, and creates Start Menu and Desktop shortcuts:
@@ -145,14 +146,14 @@ Builds the standalone macOS `.app` bundle with icon conversion and generates a d
 ```bash
 bash packaging/macos/build_dmg.sh
 ```
-Output: `target/installer/LogicCraft-1.0.2.dmg`
+Output: `target/installer/LogicCraft-1.0.3.dmg`
 
 ### 2. macOS Component Package (`.pkg`)
 Generates an Apple installer package configured for `/Applications`:
 ```bash
 bash packaging/macos/build_pkg.sh
 ```
-Output: `target/installer/LogicCraft-1.0.2.pkg` (or fallback `LogicCraft-v1.0.2-macos.tar.gz`)
+Output: `target/installer/LogicCraft-1.0.3.pkg` (or fallback `LogicCraft-v1.0.3-macos.tar.gz`)
 
 ---
 
@@ -163,11 +164,11 @@ Packages the binaries, `.desktop` launcher, and high-resolution icons into a nat
 ```bash
 bash packaging/linux/build_deb.sh
 ```
-Output: `target/installer/logiccraft_1.0.2_amd64.deb`
+Output: `target/installer/logiccraft_1.0.3_amd64.deb`
 
 To install:
 ```bash
-sudo dpkg -i target/installer/logiccraft_1.0.2_amd64.deb
+sudo dpkg -i target/installer/logiccraft_1.0.3_amd64.deb
 ```
 
 ### 2. Standalone Linux Portable Tarball (`.tar.gz`)
@@ -175,7 +176,7 @@ Generates a portable archive with standalone executable, desktop launcher, and u
 ```bash
 bash packaging/linux/build_tarball.sh
 ```
-Output: `target/installer/LogicCraft-v1.0.2-linux-x64.tar.gz`
+Output: `target/installer/LogicCraft-v1.0.3-linux-x64.tar.gz`
 
 ---
 
@@ -230,14 +231,14 @@ powershell -ExecutionPolicy Bypass -File packaging\windows\update.ps1 -InstallDi
 The repository is configured with automated GitHub Actions workflows:
 
 ### Creating a New Version & GitHub Release
-1. Update the version in `Cargo.toml` (e.g. `1.0.2`, `1.1.0`).
+1. Update the version in `Cargo.toml` (e.g. `1.0.3`, `1.1.0`).
 2. Commit and tag the release:
    ```powershell
    git add .
-   git commit -m "fix: v1.0.2 cross-platform updater and complete circuit state persistence including Karnaugh maps"
-   git tag -a v1.0.2 -m "LogicCraft CAD v1.0.2 Release"
+   git commit -m "feat: v1.0.3 copy-paste, group dragging, multi-place, wire dragging & status bar tips"
+   git tag -a v1.0.3 -m "LogicCraft CAD v1.0.3 Release"
    git push origin main
-   git push origin v1.0.2
+   git push origin v1.0.3
    ```
 3. The GitHub Actions release workflow (`.github/workflows/release.yml`) automatically triggers on the `v*` tag:
    - Builds optimized multi-platform release binaries on Windows, macOS, and Linux
@@ -260,6 +261,21 @@ User preferences are automatically preserved across application restarts in:
 - **Solder Dots**: Wire connection terminals visible or hidden
 - **Oscilloscope**: Technical logic analyzer visible or hidden
 - **Image Exporter**: Canvas grid and color preferences
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
+
+### v1.0.3
+- **Added**: `Ctrl+C` and `Ctrl+V` clipboard copy and paste for selected components and internal wire connections (with cascaded grid offset on repeated pastes).
+- **Added**: Multi-component group dragging — drag any selected component or anywhere inside the group bounding box to move the entire selection and its internal wires together.
+- **Added**: Continuous multi-component placement while holding `Ctrl` and clicking on the canvas.
+- **Added**: Localized cycling shortcut and workflow tips in the footer status bar right after the `RUN` / `HALT` indicator.
+- **Fixed**: Reliable vertical and horizontal wire segment dragging (using press origin hit-testing, co-located net trunk synchronization, and `custom_mid_x` routing priority).
+- **Fixed**: Removed the RAM/ROM memory editor button and memory device classification from `FROM` (`DA_FROM`) and `TO` (`DE_TO`) junction connectors.
+- **Removed**: Top-right canvas telemetry HUD overlay (`X`, `Y`, `ZOOM`, `GRID`).
 
 ---
 
