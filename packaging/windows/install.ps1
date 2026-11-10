@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  LogicCraft CAD - Windows Installer   " -ForegroundColor Cyan
-Write-Host "  Version: 1.0.6                       " -ForegroundColor Cyan
+Write-Host "  Version: 1.1.0                       " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -122,7 +122,7 @@ Copy-Item -Path "$ScriptDir\uninstall.ps1" -Destination "$InstallDir\uninstall.p
 $UninstallReg = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\LogicCraft"
 New-Item -Path $UninstallReg -Force | Out-Null
 Set-ItemProperty -Path $UninstallReg -Name "DisplayName" -Value "LogicCraft CAD" -Force
-Set-ItemProperty -Path $UninstallReg -Name "DisplayVersion" -Value "1.0.2" -Force
+Set-ItemProperty -Path $UninstallReg -Name "DisplayVersion" -Value "1.1.0" -Force
 Set-ItemProperty -Path $UninstallReg -Name "Publisher" -Value "Craft Anything" -Force
 Set-ItemProperty -Path $UninstallReg -Name "InstallLocation" -Value $InstallDir -Force
 Set-ItemProperty -Path $UninstallReg -Name "DisplayIcon" -Value "$InstallDir\icon.ico,0" -Force

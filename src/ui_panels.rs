@@ -71,6 +71,23 @@ impl LogicCraftApp {
                                 "Loaded Counter, Full Adder & Connector Demo Circuit.".to_string();
                             ui.close_menu();
                         }
+                        if ui.button("🏓 Load Pong Arcade Demo (CPU + VRAM + Keyboard)").clicked() {
+                            self.save_undo_snapshot();
+                            self.sim.populate_demo_circuit(&self.lib);
+                            if let Some(pong_idx) = self
+                                .sim
+                                .pages
+                                .iter()
+                                .position(|pg| pg.name.contains("Pong"))
+                            {
+                                self.sim.current_page = pong_idx;
+                            }
+                            self.sim.cpu.load_pong_demo();
+                            self.sim.cpu.running = true;
+                            self.status_message =
+                                "Loaded Pong Arcade (2 Players: W/S & Up/Down, Space to Start)!".to_string();
+                            ui.close_menu();
+                        }
                         ui.separator();
                         if ui.button(tr.file_open).clicked() {
                             ui.close_menu();
@@ -193,6 +210,15 @@ impl LogicCraftApp {
                         }
                         if ui
                             .checkbox(&mut self.show_custom_ic_studio, tr.view_custom_ic)
+                            .changed()
+                        {
+                            ui.close_menu();
+                        }
+                        if ui
+                            .checkbox(
+                                &mut self.show_cpu_studio,
+                                "🖥 CPU & Assembly Studio / Debugger\tCtrl+M",
+                            )
                             .changed()
                         {
                             ui.close_menu();
@@ -459,6 +485,42 @@ impl LogicCraftApp {
                             .clicked()
                         {
                             self.show_memory_editor = !self.show_memory_editor;
+                        }
+                        if crate::theme::tool_button(
+                            ui,
+                            "🖥 CPU / ASM",
+                            self.show_cpu_studio,
+                            p.green,
+                        )
+                        .on_hover_text("Open Programmable CPU & Assembly Debugger Studio (Ctrl+M)")
+                        .clicked()
+                        {
+                            self.show_cpu_studio = !self.show_cpu_studio;
+                        }
+                        if crate::theme::tool_button(ui, "🏓 PONG", false, p.cyan)
+                            .on_hover_text("Jump to 2-Player Pong Arcade Page & Run CPU")
+                            .clicked()
+                        {
+                            if let Some(pong_idx) = self
+                                .sim
+                                .pages
+                                .iter()
+                                .position(|pg| pg.name.contains("Pong"))
+                            {
+                                self.sim.current_page = pong_idx;
+                            } else {
+                                self.save_undo_snapshot();
+                                let new_idx = self.sim.pages.len();
+                                self.sim
+                                    .pages
+                                    .push(CircuitPage::new("Pong Arcade (CPU + MMIO)"));
+                                self.sim.populate_pong_page(&self.lib, new_idx);
+                                self.sim.current_page = new_idx;
+                            }
+                            self.sim.cpu.running = true;
+                            self.status_message =
+                                "Pong Arcade Ready — Player 1: W / S | Player 2: Up / Down | Space: Start"
+                                    .to_string();
                         }
                     });
             });
@@ -1376,6 +1438,200 @@ impl LogicCraftApp {
                 if crate::theme::tool_button(ui, tr.inspector_edit_ram_rom, false, p.purple).clicked() {
                     self.memory_edit_gate_id = Some(g_snap.id);
                     self.show_memory_editor = true;
+                }
+            }
+
+            // Inspector controls for Programmable CPU (`CPU_COMPONENT`)
+            let mut updated_lparam: Option<(&'static str, String)> = None;
+            if g_snap.type_name == "CPU_COMPONENT" {
+                ui.separator();
+                ui.label(
+                    RichText::new("🖥 CPU PROCESSOR CONFIG")
+                        .font(FontId::new(10.5, FontFamily::Monospace))
+                        .strong()
+                        .color(p.cyan),
+                );
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new("ARCH:")
+                            .font(FontId::new(10.0, FontFamily::Monospace))
+                            .color(p.text_secondary),
+                    );
+                    for arch in crate::cpu::CpuArch::ALL {
+                        let is_sel = self.sim.cpu.arch() == arch;
+                        if crate::theme::tool_button(ui, arch.code_str(), is_sel, p.cyan)
+                            .on_hover_text(arch.display_name())
+                            .clicked()
+                        {
+                            self.sim.cpu.set_arch(arch);
+                            updated_lparam = Some(("CPU_ARCH", arch.code_str().to_string()));
+                        }
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new("CLK MODE:")
+                            .font(FontId::new(10.0, FontFamily::Monospace))
+                            .color(p.text_secondary),
+                    );
+                    let is_internal = self.sim.cpu.use_internal_clock;
+                    if crate::theme::tool_button(ui, "INTERNAL (FAST)", is_internal, p.green)
+                        .on_hover_text("High-speed internal clock (1 kHz - 1 MHz)")
+                        .clicked()
+                    {
+                        self.sim.cpu.use_internal_clock = true;
+                        updated_lparam = Some(("CLOCK_MODE", "INTERNAL".to_string()));
+                    }
+                    if crate::theme::tool_button(ui, "CIRCUIT PIN", !is_internal, p.orange)
+                        .on_hover_text("Step 1 instruction per rising edge on CLK pin")
+                        .clicked()
+                    {
+                        self.sim.cpu.use_internal_clock = false;
+                        updated_lparam = Some(("CLOCK_MODE", "CIRCUIT".to_string()));
+                    }
+                });
+                if self.sim.cpu.use_internal_clock {
+                    let mut hz = self.sim.cpu.clock_hz;
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut hz, 1_000..=1_000_000)
+                                .logarithmic(true)
+                                .suffix(" Hz")
+                                .text("CLK"),
+                        )
+                        .changed()
+                    {
+                        self.sim.cpu.clock_hz = hz;
+                        updated_lparam = Some(("CLOCK_HZ", hz.to_string()));
+                    }
+                }
+                if crate::theme::primary_button(ui, "🖥 Open CPU & Assembly Studio...", p.cyan)
+                    .clicked()
+                {
+                    self.show_cpu_studio = true;
+                }
+            }
+
+            // Inspector controls for VRAM Graphical Monitor (`DISPLAY_COMPONENT`)
+            if g_snap.type_name == "DISPLAY_COMPONENT" {
+                ui.separator();
+                let mut disp = crate::cpu::DisplayComponent::from_lparams(&g_snap.lparams);
+                ui.label(
+                    RichText::new("🖵 VRAM MONITOR CONFIG (MMIO)")
+                        .font(FontId::new(10.5, FontFamily::Monospace))
+                        .strong()
+                        .color(p.green),
+                );
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new("VRAM BASE:")
+                            .font(FontId::new(10.0, FontFamily::Monospace))
+                            .color(p.text_secondary),
+                    );
+                    let mut hex_str = g_snap
+                        .lparams
+                        .get("VRAM_BASE")
+                        .cloned()
+                        .unwrap_or_else(|| format!("0x{:04X}", disp.vram_base));
+                    if ui
+                        .add(
+                            egui::TextEdit::singleline(&mut hex_str)
+                                .desired_width(68.0)
+                                .font(FontId::new(11.0, FontFamily::Monospace)),
+                        )
+                        .changed()
+                    {
+                        let t = hex_str
+                            .trim()
+                            .trim_start_matches("0x")
+                            .trim_start_matches("0X");
+                        if let Ok(addr) = u16::from_str_radix(t, 16) {
+                            updated_lparam = Some(("VRAM_BASE", format!("0x{addr:04X}")));
+                        }
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    for preset in [0x8000u16, 0x8800, 0x9000, 0xA000] {
+                        let is_cur = disp.vram_base == preset;
+                        if crate::theme::tool_button(
+                            ui,
+                            &format!("0x{preset:04X}"),
+                            is_cur,
+                            p.cyan,
+                        )
+                        .on_hover_text("Bind monitor to this VRAM base address")
+                        .clicked()
+                        {
+                            disp.vram_base = preset;
+                            updated_lparam = Some(("VRAM_BASE", format!("0x{preset:04X}")));
+                        }
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new("RES:")
+                            .font(FontId::new(10.0, FontFamily::Monospace))
+                            .color(p.text_secondary),
+                    );
+                    for res in crate::cpu::DisplayResolution::ALL {
+                        let is_sel = disp.resolution == res;
+                        if crate::theme::tool_button(ui, res.label(), is_sel, p.cyan)
+                            .on_hover_text(res.label())
+                            .clicked()
+                        {
+                            updated_lparam = Some(("RESOLUTION", res.label().to_string()));
+                        }
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new("PALETTE:")
+                            .font(FontId::new(10.0, FontFamily::Monospace))
+                            .color(p.text_secondary),
+                    );
+                    for pal in crate::cpu::DisplayPalette::ALL {
+                        let is_sel = disp.palette == pal;
+                        if crate::theme::tool_button(ui, pal.code_str(), is_sel, p.purple)
+                            .on_hover_text(pal.display_name())
+                            .clicked()
+                        {
+                            updated_lparam = Some(("PALETTE", pal.code_str().to_string()));
+                        }
+                    }
+                });
+            }
+
+            // Inspector info for Arcade Keyboard (`KEYBOARD_COMPONENT`)
+            if g_snap.type_name == "KEYBOARD_COMPONENT" {
+                ui.separator();
+                let ks = &self.sim.cpu.keyboard.state;
+                ui.label(
+                    RichText::new("⌨ MMIO KEYBOARD INPUT (0xF000)")
+                        .font(FontId::new(10.5, FontFamily::Monospace))
+                        .strong()
+                        .color(p.orange),
+                );
+                ui.label(
+                    RichText::new(format!(
+                        "P1 (W/S): [{}/{}] | P2 (↑/↓): [{}/{}] | START: [{}]",
+                        u8::from(ks.p1_up),
+                        u8::from(ks.p1_down),
+                        u8::from(ks.p2_up),
+                        u8::from(ks.p2_down),
+                        u8::from(ks.start),
+                    ))
+                    .font(FontId::new(10.0, FontFamily::Monospace))
+                    .color(p.text_primary),
+                );
+            }
+
+            if let Some((k, v)) = updated_lparam {
+                if let Some(g) = self.sim.pages[page_idx]
+                    .gates
+                    .iter_mut()
+                    .find(|g| g.id == g_snap.id)
+                {
+                    g.lparams.insert(k.into(), v);
                 }
             }
 

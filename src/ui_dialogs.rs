@@ -1382,4 +1382,513 @@ impl LogicCraftApp {
         }
         self.show_update_dialog = open;
     }
+
+    /// Floating Programmable CPU Studio, Integrated Assembler & Real-Time Debugger Window.
+    pub fn draw_cpu_studio_window(&mut self, ctx: &egui::Context) {
+        let p = crate::theme::palette(self.dark_mode);
+        let mut open = self.show_cpu_studio;
+
+        egui::Window::new("🖥 CPU & Assembly Studio — Multi-Architecture Debugger & MMIO")
+            .open(&mut open)
+            .default_size([980.0, 650.0])
+            .min_width(780.0)
+            .min_height(480.0)
+            .resizable(true)
+            .frame(crate::theme::window_frame(self.dark_mode))
+            .show(ctx, |ui| {
+                // -----------------------------------------------------------------
+                // 1. TOP SIMULATION & ARCHITECTURE CONTROL BAR
+                // -----------------------------------------------------------------
+                crate::theme::section_header(
+                    ui,
+                    "CPU CORE ARCHITECTURE & REAL-TIME EXECUTION CONTROLS",
+                    p.cyan,
+                );
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 5.0;
+
+                    // CPU Architecture Selector (Dropdown + quick badge)
+                    ui.label(
+                        RichText::new("ARCH //")
+                            .font(FontId::new(10.5, FontFamily::Monospace))
+                            .strong()
+                            .color(p.cyan),
+                    );
+                    let cur_arch = self.sim.cpu.arch();
+                    let mut selected_arch = cur_arch;
+                    egui::ComboBox::from_id_source("cpu_arch_selector_combo")
+                        .width(235.0)
+                        .selected_text(
+                            RichText::new(cur_arch.display_name())
+                                .font(FontId::new(11.0, FontFamily::Monospace))
+                                .color(p.text_primary),
+                        )
+                        .show_ui(ui, |ui| {
+                            for arch in crate::cpu::CpuArch::ALL {
+                                ui.selectable_value(
+                                    &mut selected_arch,
+                                    arch,
+                                    arch.display_name(),
+                                );
+                            }
+                        });
+                    if selected_arch != cur_arch {
+                        self.sim.cpu.set_arch(selected_arch);
+                    }
+
+                    crate::theme::group_separator(ui);
+
+                    // Run / Pause / Single Step / Reset Controls
+                    let is_running = self.sim.cpu.running;
+                    if crate::theme::primary_button(
+                        ui,
+                        if is_running { "⏸ Pause" } else { "▶ Run" },
+                        if is_running { p.orange } else { p.green },
+                    )
+                    .on_hover_text("Start or Pause continuous CPU instruction execution")
+                    .clicked()
+                    {
+                        self.sim.cpu.running = !self.sim.cpu.running;
+                    }
+
+                    if crate::theme::tool_button(ui, "⏭ Single Step", false, p.cyan)
+                        .on_hover_text("Execute 1 assembly instruction and inspect registers/PC")
+                        .clicked()
+                    {
+                        self.sim.cpu.running = false;
+                        self.sim.cpu.single_step();
+                    }
+
+                    if crate::theme::tool_button(ui, "↺ Reset", false, p.red)
+                        .on_hover_text("Reset CPU registers, PC = 0x0000, and reload assembled ROM")
+                        .clicked()
+                    {
+                        self.sim.cpu.reset();
+                    }
+
+                    crate::theme::group_separator(ui);
+
+                    // Clock Mode & Frequency Slider (1 kHz .. 1 MHz)
+                    let is_internal_clk = self.sim.cpu.use_internal_clock;
+                    if crate::theme::tool_button(
+                        ui,
+                        if is_internal_clk {
+                            "CLK: INTERNAL"
+                        } else {
+                            "CLK: CIRCUIT PIN"
+                        },
+                        is_internal_clk,
+                        p.purple,
+                    )
+                    .on_hover_text("Toggle between internal high-speed clock (1 kHz - 1 MHz) and external circuit CLK pin")
+                    .clicked()
+                    {
+                        self.sim.cpu.use_internal_clock = !self.sim.cpu.use_internal_clock;
+                    }
+
+                    if is_internal_clk {
+                        ui.add(
+                            egui::Slider::new(&mut self.sim.cpu.clock_hz, 1_000..=1_000_000)
+                                .logarithmic(true)
+                                .suffix(" Hz"),
+                        )
+                        .on_hover_text("Real-time CPU Clock Speed (1 kHz to 1 MHz)");
+                    }
+                });
+
+                ui.separator();
+
+                // -----------------------------------------------------------------
+                // 2. SPLIT VIEW: LEFT = ASSEMBLY CODE EDITOR, RIGHT = DEBUGGER
+                // -----------------------------------------------------------------
+                ui.columns(2, |cols| {
+                    // =============================================================
+                    // LEFT COLUMN: INTEGRATED ASSEMBLY EDITOR & LOADER
+                    // =============================================================
+                    let left_ui = &mut cols[0];
+                    crate::theme::section_header(
+                        left_ui,
+                        "ASSEMBLY CODE EDITOR & ASSEMBLER",
+                        p.green,
+                    );
+
+                    left_ui.horizontal_wrapped(|ui| {
+                        if crate::theme::primary_button(ui, "⚡ Assemble & Load", p.green)
+                            .on_hover_text("Assemble source code and load machine code into ROM (0x0000)")
+                            .clicked()
+                        {
+                            if let Ok(cnt) = self.sim.cpu.assemble_and_load() {
+                                self.status_message = format!(
+                                    "Assembled & loaded {} program ({cnt} instructions)!",
+                                    self.sim.cpu.arch().code_str()
+                                );
+                            }
+                        }
+
+                        if crate::theme::tool_button(ui, "📂 Load .asm", false, p.cyan)
+                            .on_hover_text("Load an Assembly source file (.asm / .s) from disk")
+                            .clicked()
+                        {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Assembly Source (*.asm, *.s)", &["asm", "s", "txt"])
+                                .pick_file()
+                            {
+                                if let Ok(txt) = std::fs::read_to_string(&path) {
+                                    self.sim.cpu.source_code = txt;
+                                    let _ = self.sim.cpu.assemble_and_load();
+                                    self.status_message =
+                                        format!("Loaded assembly from {}", path.display());
+                                }
+                            }
+                        }
+
+                        if crate::theme::tool_button(ui, "💾 Save .asm", false, p.cyan)
+                            .on_hover_text("Save current Assembly source code to a .asm file")
+                            .clicked()
+                        {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Assembly Source (*.asm)", &["asm"])
+                                .set_file_name("program.asm")
+                                .save_file()
+                            {
+                                if std::fs::write(&path, &self.sim.cpu.source_code).is_ok() {
+                                    self.status_message =
+                                        format!("Saved assembly to {}", path.display());
+                                }
+                            }
+                        }
+
+                        if crate::theme::tool_button(ui, "🏓 Pong.asm", false, p.orange)
+                            .on_hover_text("Load the 2-Player Arcade Pong game (examples/pong.asm)")
+                            .clicked()
+                        {
+                            self.sim.cpu.load_pong_demo();
+                            self.sim.cpu.running = true;
+                            self.status_message =
+                                "Loaded & started examples/pong.asm!".to_string();
+                        }
+                    });
+
+                    // Status / Syntax Error Banner with Highlighted Line Preview
+                    if !self.sim.cpu.assembly_errors.is_empty() {
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(58, 18, 24))
+                            .stroke(Stroke::new(1.2, p.red))
+                            .inner_margin(egui::Margin::same(6.0))
+                            .show(left_ui, |ui| {
+                                ui.label(
+                                    RichText::new(format!(
+                                        "⚠ {} SYNTAX ERROR(S) DETECTED:",
+                                        self.sim.cpu.assembly_errors.len()
+                                    ))
+                                    .font(FontId::new(11.0, FontFamily::Monospace))
+                                    .strong()
+                                    .color(p.red),
+                                );
+                                let src_lines: Vec<&str> =
+                                    self.sim.cpu.source_code.lines().collect();
+                                for err in self.sim.cpu.assembly_errors.iter().take(4) {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "• Line {:03}: {}",
+                                            err.line, err.message
+                                        ))
+                                        .font(FontId::new(10.5, FontFamily::Monospace))
+                                        .color(Color32::from_rgb(255, 190, 190)),
+                                    );
+                                    if let Some(bad_line) =
+                                        src_lines.get(err.line.saturating_sub(1))
+                                    {
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "    >> {:03} | {}",
+                                                err.line,
+                                                bad_line.trim()
+                                            ))
+                                            .font(FontId::new(10.5, FontFamily::Monospace))
+                                            .background_color(Color32::from_rgb(95, 24, 34))
+                                            .color(Color32::WHITE),
+                                        );
+                                    }
+                                }
+                            });
+                    } else {
+                        left_ui.label(
+                            RichText::new(&self.sim.cpu.status_log)
+                                .font(FontId::new(10.0, FontFamily::Monospace))
+                                .color(p.green),
+                        );
+                    }
+
+                    left_ui.add_space(4.0);
+
+                    // Monospace Assembly Editor with line numbers gutter
+                    let err_line_set: std::collections::HashSet<usize> = self
+                        .sim
+                        .cpu
+                        .assembly_errors
+                        .iter()
+                        .map(|e| e.line)
+                        .collect();
+                    let cur_pc = self.sim.cpu.core.get_state().pc;
+                    let active_src_line = self
+                        .sim
+                        .cpu
+                        .last_assembled
+                        .as_ref()
+                        .and_then(|prog| prog.addr_to_line.get(&cur_pc).copied());
+
+                    egui::ScrollArea::vertical()
+                        .id_source("cpu_asm_editor_scroll")
+                        .max_height(left_ui.available_height() - 8.0)
+                        .show(left_ui, |ui| {
+                            let line_count = self.sim.cpu.source_code.lines().count().max(1);
+                            let mut gutter = String::with_capacity(line_count * 6);
+                            for ln in 1..=line_count {
+                                let marker = if err_line_set.contains(&ln) {
+                                    "!"
+                                } else if active_src_line == Some(ln) {
+                                    "▶"
+                                } else {
+                                    " "
+                                };
+                                gutter.push_str(&format!("{marker}{ln:3}\n"));
+                            }
+
+                            ui.horizontal_top(|ui| {
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(gutter.trim_end())
+                                            .font(FontId::new(11.5, FontFamily::Monospace))
+                                            .color(if !err_line_set.is_empty() {
+                                                p.orange
+                                            } else {
+                                                p.text_muted
+                                            }),
+                                    )
+                                    .wrap(false),
+                                );
+                                ui.add(
+                                    egui::TextEdit::multiline(&mut self.sim.cpu.source_code)
+                                        .font(FontId::new(11.5, FontFamily::Monospace))
+                                        .code_editor()
+                                        .desired_width(f32::INFINITY)
+                                        .desired_rows(28),
+                                );
+                            });
+                        });
+
+                    // =============================================================
+                    // RIGHT COLUMN: REAL-TIME REGISTERS, DISASSEMBLER & HEX DUMP
+                    // =============================================================
+                    let right_ui = &mut cols[1];
+                    let cpu_state = self.sim.cpu.core.get_state();
+
+                    // --- A. CPU Status & Registers (Hex + Decimal) ---
+                    crate::theme::section_header(
+                        right_ui,
+                        "REAL-TIME REGISTERS (HEX & DECIMAL)",
+                        p.orange,
+                    );
+
+                    right_ui.horizontal_wrapped(|ui| {
+                        crate::theme::status_pill(
+                            ui,
+                            &format!("PC: 0x{:04X} ({})", cpu_state.pc, cpu_state.pc),
+                            p.cyan,
+                        );
+                        crate::theme::status_pill(
+                            ui,
+                            &format!("SP: 0x{:04X}", cpu_state.sp),
+                            p.purple,
+                        );
+                        crate::theme::status_pill(
+                            ui,
+                            &format!("CYCLES: {}", cpu_state.cycles),
+                            p.green,
+                        );
+                        crate::theme::status_pill(
+                            ui,
+                            &format!(
+                                "FLAGS [Z:{} N:{} C:{} V:{}]",
+                                u8::from(cpu_state.flags.z),
+                                u8::from(cpu_state.flags.n),
+                                u8::from(cpu_state.flags.c),
+                                u8::from(cpu_state.flags.v),
+                            ),
+                            p.orange,
+                        );
+                    });
+
+                    let regs = self.sim.cpu.core.registers();
+                    egui::ScrollArea::vertical()
+                        .id_source("cpu_registers_scroll")
+                        .max_height(135.0)
+                        .show(right_ui, |ui| {
+                            egui::Grid::new("cpu_registers_grid")
+                                .striped(true)
+                                .num_columns(4)
+                                .min_col_width(105.0)
+                                .spacing([8.0, 2.0])
+                                .show(ui, |ui| {
+                                    for (idx, reg) in regs.iter().enumerate() {
+                                        let signed_val = match reg.bits {
+                                            8 => (reg.value as i8) as i64,
+                                            16 => (reg.value as i16) as i64,
+                                            _ => (reg.value as i32) as i64,
+                                        };
+                                        let hex_txt = match reg.bits {
+                                            8 => format!("0x{:02X}", reg.value & 0xFF),
+                                            16 => format!("0x{:04X}", reg.value & 0xFFFF),
+                                            _ => format!("0x{:08X}", reg.value),
+                                        };
+                                        let col = if reg.changed {
+                                            p.green
+                                        } else if reg.value != 0 {
+                                            p.text_primary
+                                        } else {
+                                            p.text_muted
+                                        };
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "{:<7} {} ({})",
+                                                reg.name, hex_txt, signed_val
+                                            ))
+                                            .font(FontId::new(10.5, FontFamily::Monospace))
+                                            .color(col),
+                                        );
+                                        if (idx + 1) % 2 == 0 {
+                                            ui.end_row();
+                                        }
+                                    }
+                                });
+                        });
+
+                    right_ui.add_space(4.0);
+
+                    // --- B. Live Disassembler (Current PC & Upcoming Instructions) ---
+                    crate::theme::section_header(
+                        right_ui,
+                        "LIVE DISASSEMBLER (CURRENT PC & UPCOMING)",
+                        p.purple,
+                    );
+
+                    egui::Frame::none()
+                        .fill(p.bg_secondary)
+                        .stroke(Stroke::new(1.0, p.border_secondary))
+                        .inner_margin(egui::Margin::same(5.0))
+                        .show(right_ui, |ui| {
+                            let mut addr = cpu_state.pc;
+                            for row in 0..6 {
+                                let (asm_text, len) =
+                                    self.sim.cpu.core.disassemble_at(addr, &self.sim.cpu.bus);
+                                let is_cur = row == 0;
+                                let prefix = if is_cur { "▶" } else { " " };
+                                let src_ln = self
+                                    .sim
+                                    .cpu
+                                    .last_assembled
+                                    .as_ref()
+                                    .and_then(|prog| prog.addr_to_line.get(&addr).copied())
+                                    .map(|l| format!("L{l:03}"))
+                                    .unwrap_or_else(|| "    ".to_string());
+                                let row_txt = format!(
+                                    "{prefix} 0x{addr:04X} [{src_ln}]  {asm_text}"
+                                );
+                                ui.label(
+                                    RichText::new(row_txt)
+                                        .font(FontId::new(11.0, FontFamily::Monospace))
+                                        .strong()
+                                        .color(if is_cur { p.green } else { p.text_secondary }),
+                                );
+                                addr = addr.wrapping_add(len.max(1));
+                            }
+                        });
+
+                    right_ui.add_space(4.0);
+
+                    // --- C. Memory Hex Dump Viewer with Direct Jump to VRAM ---
+                    crate::theme::section_header(
+                        right_ui,
+                        "MEMORY HEX DUMP & MMIO / VRAM INSPECTOR",
+                        p.cyan,
+                    );
+
+                    right_ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            RichText::new("JUMP:")
+                                .font(FontId::new(10.0, FontFamily::Monospace))
+                                .color(p.text_secondary),
+                        );
+                        for (label, target) in [
+                            ("ROM 0x0000", 0x0000u16),
+                            ("RAM 0x4000", 0x4000u16),
+                            ("VRAM 0x8000", crate::cpu::bus::VRAM_BASE),
+                            ("MMIO 0xF000", crate::cpu::bus::MMIO_BASE),
+                        ] {
+                            let is_active =
+                                (self.sim.cpu.hex_dump_base & 0xFFF0) == (target & 0xFFF0);
+                            if crate::theme::tool_button(ui, label, is_active, p.cyan).clicked() {
+                                self.sim.cpu.hex_dump_base = target;
+                                self.cpu_mem_addr_input = format!("0x{target:04X}");
+                            }
+                        }
+
+                        if ui
+                            .add(
+                                egui::TextEdit::singleline(&mut self.cpu_mem_addr_input)
+                                    .desired_width(64.0)
+                                    .font(FontId::new(11.0, FontFamily::Monospace)),
+                            )
+                            .changed()
+                        {
+                            let cleaned = self
+                                .cpu_mem_addr_input
+                                .trim()
+                                .trim_start_matches("0x")
+                                .trim_start_matches("0X");
+                            if let Ok(parsed) = u16::from_str_radix(cleaned, 16) {
+                                self.sim.cpu.hex_dump_base = parsed & 0xFFF0;
+                            }
+                        }
+                    });
+
+                    egui::ScrollArea::vertical()
+                        .id_source("cpu_mem_hexdump_scroll")
+                        .max_height(right_ui.available_height() - 6.0)
+                        .show(right_ui, |ui| {
+                            let base_start = self.sim.cpu.hex_dump_base & 0xFFF0;
+                            for r in 0..16u16 {
+                                let row_addr = base_start.wrapping_add(r * 16);
+                                let mut hex_part = String::with_capacity(48);
+                                let mut ascii_part = String::with_capacity(16);
+                                for c in 0..16u16 {
+                                    let b = self
+                                        .sim
+                                        .cpu
+                                        .bus
+                                        .peek8(u32::from(row_addr.wrapping_add(c)));
+                                    hex_part.push_str(&format!("{b:02X} "));
+                                    let ch = if (0x20..=0x7E).contains(&b) {
+                                        b as char
+                                    } else {
+                                        '.'
+                                    };
+                                    ascii_part.push(ch);
+                                }
+                                ui.label(
+                                    RichText::new(format!(
+                                        "0x{row_addr:04X}: {hex_part} |{ascii_part}|"
+                                    ))
+                                    .font(FontId::new(10.5, FontFamily::Monospace))
+                                    .color(p.text_primary),
+                                );
+                            }
+                        });
+                });
+            });
+
+        self.show_cpu_studio = open;
+    }
 }

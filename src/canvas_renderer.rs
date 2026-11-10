@@ -184,8 +184,9 @@ pub fn draw_mini_gate_icon(
 ) {
     let p = crate::theme::palette(dark_mode);
     let fg_col = match style {
-        GateShapeStyle::RamRom { .. } | GateShapeStyle::CustomIc => p.purple,
-        GateShapeStyle::FlipFlopD | GateShapeStyle::FlipFlopJK | GateShapeStyle::Register => p.orange,
+        GateShapeStyle::RamRom { .. } | GateShapeStyle::CustomIc | GateShapeStyle::CpuProcessor => p.purple,
+        GateShapeStyle::VramDisplay => p.green,
+        GateShapeStyle::FlipFlopD | GateShapeStyle::FlipFlopJK | GateShapeStyle::Register | GateShapeStyle::KeyboardInput => p.orange,
         _ => p.cyan,
     };
     let fill_col = p.component_fill;
@@ -465,6 +466,9 @@ pub fn draw_mini_gate_icon(
                 GateShapeStyle::Pauseulator => "||",
                 GateShapeStyle::ChipBox => "IC",
                 GateShapeStyle::CustomIc => "CUST",
+                GateShapeStyle::CpuProcessor => "CPU",
+                GateShapeStyle::VramDisplay => "VRAM",
+                GateShapeStyle::KeyboardInput => "KEYS",
                 _ => "IC",
             };
             painter.text(
@@ -538,6 +542,7 @@ pub fn draw_gate_on_canvas(
     page: &CircuitPage,
     g: &GateInstance,
     def: &GateDef,
+    cpu: &crate::cpu::CpuComponent,
     dark_mode: bool,
     show_wire_conn: bool,
 ) {
@@ -1093,6 +1098,201 @@ pub fn draw_gate_on_canvas(
                 FontId::new((1.25 * px_per_world).clamp(11.0, 20.0), FontFamily::Monospace),
                 if g.selected { p.cyan } else { p.text_primary },
             );
+        }
+        GateShapeStyle::VramDisplay => {
+            let box_r = Rect::from_two_pos(to_screen([-hw, hh]), to_screen([hw, -hh]));
+            painter.rect_filled(box_r, 2.0, body_fill);
+            painter.rect_stroke(box_r, 2.0, stroke);
+
+            let disp = crate::cpu::DisplayComponent::from_lparams(&g.lparams);
+            let (res_w, res_h) = disp.resolution.dimensions();
+            let header_h = (1.35 * px_per_world).clamp(12.0, 22.0);
+            let pad = (0.55 * px_per_world).clamp(4.0, 10.0);
+
+            // Header bar with VRAM Base Address, Resolution & Palette badge
+            let hdr_r = Rect::from_min_max(
+                box_r.left_top() + Vec2::new(pad, 2.0),
+                Pos2::new(box_r.right() - pad, (box_r.top() + header_h).min(box_r.bottom())),
+            );
+            let hdr_txt = format!(
+                "VRAM 0x{:04X} [{} // {}]",
+                disp.vram_base,
+                disp.resolution.label(),
+                disp.palette.code_str()
+            );
+            let hdr_fsize = fit_font_size(&hdr_txt, hdr_r.width() - 4.0, (0.68 * px_per_world).clamp(7.0, 11.0));
+            painter.with_clip_rect(hdr_r).text(
+                hdr_r.center(),
+                Align2::CENTER_CENTER,
+                hdr_txt,
+                FontId::new(hdr_fsize, FontFamily::Monospace),
+                p.green,
+            );
+
+            // Screen CRT/LCD Bezel
+            let screen_r = Rect::from_min_max(
+                Pos2::new(box_r.left() + pad, box_r.top() + header_h + 2.0),
+                Pos2::new(box_r.right() - pad, box_r.bottom() - pad),
+            );
+            if screen_r.width() > 4.0 && screen_r.height() > 4.0 {
+                let bg_col = disp.palette.pixel_color(0);
+                painter.rect_filled(screen_r, 1.0, bg_col);
+
+                let pw = screen_r.width() / res_w as f32;
+                let ph = screen_r.height() / res_h as f32;
+                let base = disp.vram_base as u32;
+
+                // Horizontal run-length batched pixel rendering for maximum FPS
+                for py in 0..res_h {
+                    let row_addr = base.wrapping_add((py * res_w) as u32);
+                    let y0 = screen_r.top() + py as f32 * ph;
+                    let y1 = y0 + ph.max(1.0);
+                    let mut px = 0usize;
+                    while px < res_w {
+                        let val = cpu.bus.peek8(row_addr.wrapping_add(px as u32));
+                        if val == 0 {
+                            px += 1;
+                            continue;
+                        }
+                        let col = disp.palette.pixel_color(val);
+                        let start_x = px;
+                        px += 1;
+                        while px < res_w {
+                            let next_val = cpu.bus.peek8(row_addr.wrapping_add(px as u32));
+                            if next_val == 0 || disp.palette.pixel_color(next_val) != col {
+                                break;
+                            }
+                            px += 1;
+                        }
+                        let x0 = screen_r.left() + start_x as f32 * pw;
+                        let x1 = screen_r.left() + px as f32 * pw;
+                        painter.rect_filled(
+                            Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1)),
+                            0.0,
+                            col,
+                        );
+                    }
+                }
+                painter.rect_stroke(screen_r, 1.0, Stroke::new(1.1, p.border_primary));
+            }
+        }
+        GateShapeStyle::CpuProcessor => {
+            let box_r = Rect::from_two_pos(to_screen([-hw, hh]), to_screen([hw, -hh]));
+            painter.rect_filled(box_r, 1.5, body_fill);
+            painter.rect_stroke(box_r, 1.5, stroke);
+
+            let state = cpu.core.get_state();
+            let clipped = painter.with_clip_rect(box_r.shrink(2.0));
+            let title = format!("CPU // {}", state.arch.code_str());
+            let fsize = fit_font_size(&title, box_r.width() - 16.0, (0.85 * px_per_world).clamp(8.0, 12.5));
+            clipped.text(
+                Pos2::new(box_r.center().x, box_r.top() + fsize + 4.0),
+                Align2::CENTER_CENTER,
+                title,
+                FontId::new(fsize, FontFamily::Monospace),
+                p.purple,
+            );
+
+            let pc_txt = format!("PC:0x{:04X}", state.pc & 0xFFFF);
+            let clk_txt = if cpu.use_internal_clock {
+                if cpu.clock_hz >= 1_000_000 {
+                    format!("{:.1}MHz", cpu.clock_hz as f32 / 1_000_000.0)
+                } else {
+                    format!("{}kHz", cpu.clock_hz / 1_000)
+                }
+            } else {
+                "EXT-CLK".to_string()
+            };
+            let run_txt = if state.halted {
+                "HALTED"
+            } else if cpu.running {
+                "● RUN"
+            } else {
+                "■ PAUSE"
+            };
+            let run_col = if state.halted {
+                p.red
+            } else if cpu.running {
+                p.green
+            } else {
+                p.orange
+            };
+            let sub_fsize = (0.68 * px_per_world).clamp(6.8, 10.5);
+            clipped.text(
+                Pos2::new(box_r.center().x, box_r.center().y - sub_fsize * 0.7),
+                Align2::CENTER_CENTER,
+                pc_txt,
+                FontId::new(sub_fsize, FontFamily::Monospace),
+                p.cyan,
+            );
+            clipped.text(
+                Pos2::new(box_r.center().x, box_r.center().y + sub_fsize * 0.65),
+                Align2::CENTER_CENTER,
+                format!("{run_txt} {clk_txt}"),
+                FontId::new(sub_fsize * 0.92, FontFamily::Monospace),
+                run_col,
+            );
+
+            if px_per_world >= 7.5 {
+                let pin_font = FontId::new((0.50 * px_per_world).clamp(6.0, 8.8), FontFamily::Monospace);
+                for pin in def.inputs.iter().chain(def.outputs.iter()) {
+                    let lbl = short_pin_label(&pin.name);
+                    if (pin.pos[0] + hw).abs() < 0.2 {
+                        let tp = to_screen([-hw + 0.25, pin.pos[1]]);
+                        clipped.text(tp, Align2::LEFT_CENTER, lbl, pin_font.clone(), p.text_secondary);
+                    } else if (pin.pos[0] - hw).abs() < 0.2 {
+                        let tp = to_screen([hw - 0.25, pin.pos[1]]);
+                        clipped.text(tp, Align2::RIGHT_CENTER, lbl, pin_font.clone(), p.text_secondary);
+                    }
+                }
+            }
+        }
+        GateShapeStyle::KeyboardInput => {
+            let box_r = Rect::from_two_pos(to_screen([-hw, hh]), to_screen([hw, -hh]));
+            painter.rect_filled(box_r, 1.5, body_fill);
+            painter.rect_stroke(box_r, 1.5, stroke);
+
+            let ks = cpu.keyboard.effective_state();
+            let clipped = painter.with_clip_rect(box_r.shrink(2.0));
+            let fsize = fit_font_size("MMIO KEYBOARD", box_r.width() - 8.0, (0.72 * px_per_world).clamp(7.0, 10.5));
+            clipped.text(
+                Pos2::new(box_r.center().x, box_r.top() + fsize * 0.8 + 3.0),
+                Align2::CENTER_CENTER,
+                "MMIO KEYBOARD",
+                FontId::new(fsize, FontFamily::Monospace),
+                p.orange,
+            );
+
+            // Render 5 interactive keycaps: W, S (P1), UP, DN (P2), and SPACE (START)
+            let keys = [
+                ("W", ks.p1_up, [-2.6, 0.7]),
+                ("S", ks.p1_down, [-2.6, -1.0]),
+                ("▲", ks.p2_up, [0.3, 0.7]),
+                ("▼", ks.p2_down, [0.3, -1.0]),
+                ("SPC", ks.start, [-1.15, -2.55]),
+            ];
+            let key_w = (1.6 * px_per_world).clamp(12.0, 28.0);
+            let key_h = (1.25 * px_per_world).clamp(10.0, 22.0);
+            for (lbl, active, lpos) in keys {
+                let kc = to_screen(lpos);
+                let w_mult = if lbl == "SPC" { 2.2 } else { 1.0 };
+                let kr = Rect::from_center_size(kc, Vec2::new(key_w * w_mult, key_h));
+                let bg = if active { p.green } else { p.bg_elevated };
+                let fg = if active {
+                    Color32::from_rgb(10, 14, 18)
+                } else {
+                    p.text_primary
+                };
+                clipped.rect_filled(kr, 2.0, bg);
+                clipped.rect_stroke(kr, 2.0, Stroke::new(1.0, p.border_primary));
+                clipped.text(
+                    kr.center(),
+                    Align2::CENTER_CENTER,
+                    lbl,
+                    FontId::new((key_h * 0.56).clamp(6.5, 11.0), FontFamily::Monospace),
+                    fg,
+                );
+            }
         }
         _ => {
             let box_r = Rect::from_two_pos(to_screen([-hw, hh]), to_screen([hw, -hh]));

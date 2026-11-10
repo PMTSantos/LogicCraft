@@ -44,6 +44,9 @@ pub enum GateShapeStyle {
     Pauseulator,
     ChipBox,
     CustomIc,
+    CpuProcessor,
+    VramDisplay,
+    KeyboardInput,
 }
 
 #[derive(Debug, Clone)]
@@ -1134,6 +1137,95 @@ impl GateLibrary {
         categories.push(GateLibraryCategory {
             name: "11 - Custom Components".to_string(),
             gates: custom_gates,
+        });
+
+        // 12 - CPU & Peripherals (Programmable CPU Core, Memory-Mapped Displays & Keyboard Input)
+        let mut cpu_periphs = Vec::new();
+        cpu_periphs.push(GateDef {
+            type_name: "CPU_COMPONENT".into(),
+            caption: "Programmable CPU Core (RV32I / LC16 / MIN8)".into(),
+            category: "12 - CPU & Peripherals".into(),
+            logic_type: "CPU".into(),
+            inputs: vec![
+                pin("CLK", [-5.5, 4.0], false, false),
+                pin("RST", [-5.5, 2.5], false, false),
+                pin("IN_3", [-5.5, 0.5], false, false),
+                pin("IN_2", [-5.5, -0.5], false, false),
+                pin("IN_1", [-5.5, -1.5], false, false),
+                pin("IN_0", [-5.5, -2.5], false, false),
+            ],
+            outputs: vec![
+                pin("ADDR_3", [5.5, 4.5], true, false),
+                pin("ADDR_2", [5.5, 3.5], true, false),
+                pin("ADDR_1", [5.5, 2.5], true, false),
+                pin("ADDR_0", [5.5, 1.5], true, false),
+                pin("DATA_3", [5.5, 0.0], true, false),
+                pin("DATA_2", [5.5, -1.0], true, false),
+                pin("DATA_1", [5.5, -2.0], true, false),
+                pin("DATA_0", [5.5, -3.0], true, false),
+                pin("RW", [5.5, -4.2], true, false),
+                pin("HALT", [5.5, -5.2], true, false),
+            ],
+            half_size: [5.5, 6.0],
+            shape_style: GateShapeStyle::CpuProcessor,
+            out_inverted: false,
+            in_inverted: false,
+            default_gparams: HashMap::new(),
+            default_lparams: map(&[
+                ("CPU_ARCH", "RV32I"),
+                ("CLOCK_MODE", "INTERNAL"),
+                ("CLOCK_HZ", "150000"),
+            ]),
+            custom_lines: Vec::new(),
+        });
+        cpu_periphs.push(GateDef {
+            type_name: "DISPLAY_COMPONENT".into(),
+            caption: "VRAM Graphical Display (MMIO Monitor)".into(),
+            category: "12 - CPU & Peripherals".into(),
+            logic_type: "VRAM_DISPLAY".into(),
+            inputs: vec![
+                pin("CLK", [-9.0, 3.0], false, false),
+                pin("WE", [-9.0, 1.0], false, false),
+                pin("RST", [-9.0, -1.0], false, false),
+                pin("EN", [-9.0, -3.0], false, false),
+            ],
+            outputs: vec![pin("VSYNC", [9.0, 0.0], true, false)],
+            half_size: [9.0, 6.0],
+            shape_style: GateShapeStyle::VramDisplay,
+            out_inverted: false,
+            in_inverted: false,
+            default_gparams: HashMap::new(),
+            default_lparams: map(&[
+                ("VRAM_BASE", "0x8000"),
+                ("RESOLUTION", "64x32"),
+                ("PALETTE", "MATRIX_GREEN"),
+            ]),
+            custom_lines: Vec::new(),
+        });
+        cpu_periphs.push(GateDef {
+            type_name: "KEYBOARD_COMPONENT".into(),
+            caption: "Keyboard Input Controller (MMIO W/S/Up/Down)".into(),
+            category: "12 - CPU & Peripherals".into(),
+            logic_type: "KEYBOARD_INPUT".into(),
+            inputs: vec![pin("RST", [-5.0, 0.0], false, false)],
+            outputs: vec![
+                pin("P1_W", [5.0, 2.4], true, false),
+                pin("P1_S", [5.0, 1.2], true, false),
+                pin("P2_UP", [5.0, 0.0], true, false),
+                pin("P2_DN", [5.0, -1.2], true, false),
+                pin("START", [5.0, -2.4], true, false),
+            ],
+            half_size: [5.0, 3.8],
+            shape_style: GateShapeStyle::KeyboardInput,
+            out_inverted: false,
+            in_inverted: false,
+            default_gparams: HashMap::new(),
+            default_lparams: map(&[("MMIO_ADDR", "0xF000")]),
+            custom_lines: Vec::new(),
+        });
+        categories.push(GateLibraryCategory {
+            name: "12 - CPU & Peripherals".to_string(),
+            gates: cpu_periphs,
         });
 
         let mut by_name = HashMap::new();

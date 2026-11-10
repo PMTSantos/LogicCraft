@@ -20,6 +20,7 @@
 mod canvas_renderer;
 mod canvas_view;
 mod cdl_io;
+mod cpu;
 mod custom_component;
 mod i18n;
 mod image_export;
@@ -162,6 +163,8 @@ pub struct LogicCraftApp {
     pub show_memory_editor: bool,
     pub show_kmap_studio: bool,
     pub show_custom_ic_studio: bool,
+    pub show_cpu_studio: bool,
+    pub cpu_mem_addr_input: String,
     pub show_about_dialog: bool,
     pub show_update_dialog: bool,
     pub export_with_grid: bool,
@@ -254,6 +257,8 @@ impl LogicCraftApp {
             show_memory_editor: false,
             show_kmap_studio: false,
             show_custom_ic_studio: false,
+            show_cpu_studio: false,
+            cpu_mem_addr_input: "0x8000".to_string(),
             show_about_dialog: false,
             show_update_dialog: false,
             export_with_grid: settings.export_with_grid,
@@ -720,9 +725,30 @@ impl LogicCraftApp {
 
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
         let typing_in_text_edit = ctx.wants_keyboard_input();
+        let page_has_keyboard_or_cpu = self
+            .sim
+            .pages
+            .get(self.sim.current_page)
+            .map_or(false, |pg| {
+                pg.gates.iter().any(|g| {
+                    g.type_name == "KEYBOARD_COMPONENT" || g.type_name == "CPU_COMPONENT"
+                })
+            });
         let mut do_copy = false;
         let mut do_paste = false;
         ctx.input(|i| {
+            // Capture real-time arcade keyboard state (W/S, Up/Down, Space/Enter) for MMIO & KeyboardInputComponent
+            if !typing_in_text_edit {
+                self.sim.cpu.keyboard.state.p1_up = i.key_down(Key::W);
+                self.sim.cpu.keyboard.state.p1_down = i.key_down(Key::S);
+                self.sim.cpu.keyboard.state.p2_up = i.key_down(Key::ArrowUp);
+                self.sim.cpu.keyboard.state.p2_down = i.key_down(Key::ArrowDown);
+                self.sim.cpu.keyboard.state.start =
+                    i.key_down(Key::Space) || i.key_down(Key::Enter);
+            } else {
+                self.sim.cpu.keyboard.state = crate::cpu::bus::KeyboardState::default();
+            }
+
             let ctrl = i.modifiers.ctrl || i.modifiers.command;
             let copy_ev = (ctrl && i.key_pressed(Key::C))
                 || i.events.iter().any(|ev| matches!(ev, egui::Event::Copy));
@@ -751,6 +777,8 @@ impl LogicCraftApp {
                     self.show_oscope = !self.show_oscope;
                 } else if ctrl && i.key_pressed(Key::K) {
                     self.show_kmap_studio = !self.show_kmap_studio;
+                } else if ctrl && i.key_pressed(Key::M) {
+                    self.show_cpu_studio = !self.show_cpu_studio;
                 } else if ctrl && i.key_pressed(Key::T) {
                     self.add_new_tab();
                 } else if i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace) {
@@ -763,7 +791,10 @@ impl LogicCraftApp {
                     self.wiring_from = None;
                     self.dragging_wire = None;
                     self.dragging_wire_group.clear();
-                } else if i.key_pressed(Key::Space) {
+                } else if i.key_pressed(Key::Space)
+                    && !page_has_keyboard_or_cpu
+                    && !self.show_cpu_studio
+                {
                     self.sim.running = !self.sim.running;
                 }
             } else if i.key_pressed(Key::Escape) {
@@ -947,6 +978,12 @@ impl eframe::App for LogicCraftApp {
             std::process::exit(0);
         }
 
+        self.handle_shortcuts(ctx);
+
+        // Advance high-speed internal CPU execution without blocking UI frame rate
+        let dt_secs = ctx.input(|i| i.stable_dt).clamp(0.001, 0.05);
+        self.sim.cpu.tick_frame(f64::from(dt_secs));
+
         // Advance simulation on timer or during screenshot warmup frames
         if self.sim.running {
             let interval = Duration::from_millis(self.sim.time_step_ms as u64);
@@ -971,7 +1008,6 @@ impl eframe::App for LogicCraftApp {
         }
         ctx.request_repaint_after(Duration::from_secs(6));
 
-        self.handle_shortcuts(ctx);
         self.draw_top_bars(ctx);
         self.draw_status_bar(ctx);
 
@@ -990,6 +1026,9 @@ impl eframe::App for LogicCraftApp {
         }
         if self.show_custom_ic_studio {
             self.draw_custom_ic_studio_window(ctx);
+        }
+        if self.show_cpu_studio {
+            self.draw_cpu_studio_window(ctx);
         }
         if self.show_about_dialog {
             self.draw_about_modal(ctx);
@@ -1016,6 +1055,8 @@ impl eframe::App for LogicCraftApp {
                 std::process::exit(0);
             }
             ctx.request_repaint();
+        } else if self.sim.cpu.running {
+            ctx.request_repaint_after(Duration::from_millis(16));
         } else if self.sim.running {
             ctx.request_repaint_after(Duration::from_millis(
                 self.sim.time_step_ms.min(DEFAULT_REFRESH_RATE_MS) as u64,
@@ -1046,6 +1087,8 @@ mod tests {
             show_memory_editor: false,
             show_kmap_studio: false,
             show_custom_ic_studio: false,
+            show_cpu_studio: false,
+            cpu_mem_addr_input: "0x8000".to_string(),
             show_about_dialog: false,
             show_update_dialog: false,
             export_with_grid: true,

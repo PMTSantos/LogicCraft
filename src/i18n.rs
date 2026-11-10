@@ -212,6 +212,13 @@ impl Locale {
                 Self::De => "11 - Eigene Komponenten".into(),
                 Self::En => raw.into(),
             },
+            "12 - CPU & Peripherals" => match self {
+                Self::Pt => "12 - CPU e Periféricos MMIO".into(),
+                Self::Es => "12 - CPU y Periféricos MMIO".into(),
+                Self::Fr => "12 - CPU et Périphériques MMIO".into(),
+                Self::De => "12 - CPU & MMIO-Peripherie".into(),
+                Self::En => raw.into(),
+            },
             _ => raw.to_string(),
         }
     }
@@ -356,6 +363,27 @@ impl Locale {
                 Self::Es => "Etiqueta de Texto".into(),
                 Self::Fr => "Étiquette de Texte".into(),
                 Self::De => "Textbeschriftung".into(),
+                Self::En => raw.into(),
+            },
+            "Programmable CPU (RV32I / LC-16 / MIN-8)" => match self {
+                Self::Pt => "CPU Programável (RV32I / LC-16 / MIN-8)".into(),
+                Self::Es => "CPU Programable (RV32I / LC-16 / MIN-8)".into(),
+                Self::Fr => "CPU Programmable (RV32I / LC-16 / MIN-8)".into(),
+                Self::De => "Programmierbare CPU (RV32I / LC-16 / MIN-8)".into(),
+                Self::En => raw.into(),
+            },
+            "VRAM Graphical Monitor (MMIO)" => match self {
+                Self::Pt => "Monitor Gráfico VRAM (MMIO)".into(),
+                Self::Es => "Monitor Gráfico VRAM (MMIO)".into(),
+                Self::Fr => "Moniteur Graphique VRAM (MMIO)".into(),
+                Self::De => "VRAM Grafikmonitor (MMIO)".into(),
+                Self::En => raw.into(),
+            },
+            "Arcade Keyboard Input (W/S, Up/Down, Space)" => match self {
+                Self::Pt => "Teclado Arcade (W/S, Cima/Baixo, Espaço)".into(),
+                Self::Es => "Teclado Arcade (W/S, Arriba/Abajo, Espacio)".into(),
+                Self::Fr => "Clavier Arcade (W/S, Haut/Bas, Espace)".into(),
+                Self::De => "Arcade-Tastatur (W/S, Auf/Ab, Leertaste)".into(),
                 Self::En => raw.into(),
             },
             _ => raw.to_string(),

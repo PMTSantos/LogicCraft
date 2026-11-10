@@ -268,6 +268,12 @@ User preferences are automatically preserved across application restarts in:
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
+### v1.1.0
+- **Added**: Modular Multi-Architecture Programmable CPU (`RV32I` 32-bit, `LC-16` 16-bit, `MIN-8` 8-bit) with a unified 64 KB Memory Bus, Memory-Mapped I/O (MMIO), and an integrated Assembler supporting labels, `.org`, `.byte`, `.word`, `.equ`, and line-highlighted syntax errors.
+- **Added**: New hardware components in library `12 - CPU & Peripherals`: `CPU_COMPONENT` (1 kHz – 1 MHz internal clock or circuit pin clock), multiple configurable `DISPLAY_COMPONENT` VRAM monitors (custom VRAM base address, `64x32`/`128x64`/`64x64` resolutions, and Monochrome/Amber/Matrix Green/Game Boy palettes), and `KEYBOARD_COMPONENT` (capturing `W`/`S`, `Up`/`Down`, and `Space`/`Enter`).
+- **Added**: **CPU & Assembly Studio / Debugger** (`Ctrl+M` / `🖥 CPU / ASM`) with an embedded Assembly editor, `Run`/`Pause`/`Single Step`/`Reset` controls, live Hex & Decimal register inspector, live disassembler around `PC`, and interactive Memory Hex Dump with quick jump to VRAM (`0x8000`).
+- **Added**: Complete 2-player local **Pong** game in Assembly (`examples/pong.asm`) pre-configured on the **Pong Arcade (CPU + MMIO)** circuit tab (`🏓 PONG`).
+
 ### v1.0.6
 - **Fixed**: Prevented the updater from creating a second duplicate LogicCraft installation when updating across `C:\Program Files\LogicCraft` and `%LOCALAPPDATA%\Programs\LogicCraft`, and added automatic duplicate cleanup and Windows Installed Apps version synchronization.
 

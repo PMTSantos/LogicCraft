@@ -23,7 +23,7 @@ try {
     }
 
     $CargoToml = Get-Content "$ProjectRoot\Cargo.toml" -Raw
-    if ($CargoToml -match 'version\s*=\s*"([^"]+)"') { $PkgVersion = $matches[1] } else { $PkgVersion = "1.0.6" }
+    if ($CargoToml -match 'version\s*=\s*"([^"]+)"') { $PkgVersion = $matches[1] } else { $PkgVersion = "1.1.0" }
 
     Write-Host "[2/4] Checking available installer compilers (Version v$PkgVersion)..." -ForegroundColor Yellow
 

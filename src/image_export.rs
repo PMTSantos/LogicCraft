@@ -623,6 +623,9 @@ pub fn render_canvas_image(
                     GateShapeStyle::RamRom { is_rom: true } => "ROM",
                     GateShapeStyle::Pauseulator => "PAUSE",
                     GateShapeStyle::ChipBox => "74LS138",
+                    GateShapeStyle::CpuProcessor => "CPU",
+                    GateShapeStyle::VramDisplay => "VRAM DISPLAY",
+                    GateShapeStyle::KeyboardInput => "KEYBOARD",
                     GateShapeStyle::CustomIc => g
                         .gparams
                         .get("CHIP_LABEL")

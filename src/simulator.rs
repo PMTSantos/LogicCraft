@@ -319,6 +319,7 @@ pub struct CircuitSimulator {
     pub pause_requested_by_gate: bool,
     pub kmaps: Vec<TruthTableKMap>,
     pub active_kmap: usize,
+    pub cpu: crate::cpu::CpuComponent,
 }
 
 impl CircuitSimulator {
@@ -334,6 +335,7 @@ impl CircuitSimulator {
             vec![
                 CircuitPage::new("Page 1 - Counter & ALU"),
                 CircuitPage::new("Page 2 - Memory & Mux"),
+                CircuitPage::new("Page 3 - CPU Pong Arcade"),
             ]
         } else {
             vec![CircuitPage::new("Page 1")]
@@ -360,6 +362,7 @@ impl CircuitSimulator {
             pause_requested_by_gate: false,
             kmaps,
             active_kmap: 0,
+            cpu: crate::cpu::CpuComponent::new(),
         };
 
         if load_demo {
@@ -656,6 +659,12 @@ impl CircuitSimulator {
         self.connect_pins(lib, 1, p2_ram, "DATA_OUT_0", p2_disp, "IN_0", "DOUT_0");
         self.rebuild_wire_geometry(lib, 1);
 
+        // Page 3: Programmable CPU + Dual Memory-Mapped Displays + Keyboard Input (Pong Arcade)
+        if self.pages.len() < 3 {
+            self.pages.push(CircuitPage::new("Page 3 - CPU Pong Arcade"));
+        }
+        self.populate_pong_page(lib, 2);
+
         // Configure Oscilloscope Channels
         self.oscope_channels = vec![
             OscopeChannel {
@@ -704,6 +713,63 @@ impl CircuitSimulator {
                 history: VecDeque::new(),
             },
         ];
+    }
+
+    pub fn populate_pong_page(&mut self, lib: &GateLibrary, page_idx: usize) {
+        if page_idx >= self.pages.len() {
+            return;
+        }
+        self.pages[page_idx].gates.clear();
+        self.pages[page_idx].wires.clear();
+
+        let add_gate = |sim: &mut Self, p_idx: usize, type_name: &str, pos: [f32; 2]| -> u32 {
+            let def = lib.get(type_name).expect(type_name);
+            let id = sim.next_gate_id;
+            sim.next_gate_id += 1;
+            let inst = GateInstance::new(id, def, pos);
+            sim.pages[p_idx].gates.push(inst);
+            id
+        };
+
+        let lbl_id = add_gate(self, page_idx, "AA_LABEL", [0.0, 16.5]);
+        if let Some(g) = self.pages[page_idx].gates.iter_mut().find(|g| g.id == lbl_id) {
+            g.gparams.insert(
+                "LABEL_TEXT".into(),
+                "2-Player Pong Arcade // CPU + MMIO Dual VRAM Monitors + Keyboard Input".into(),
+            );
+        }
+
+        let kb_id = add_gate(self, page_idx, "KEYBOARD_COMPONENT", [-25.0, 5.5]);
+        let clk_id = add_gate(self, page_idx, "BB_CLOCK", [-25.0, -4.5]);
+        let rst_sw = add_gate(self, page_idx, "AA_TOGGLE", [-25.0, -9.0]);
+        let cpu_id = add_gate(self, page_idx, "CPU_COMPONENT", [-10.0, 2.0]);
+
+        // Primary Display Monitor #1 (Matrix Green, 64x32 @ 0x8000)
+        let disp1_id = add_gate(self, page_idx, "DISPLAY_COMPONENT", [11.5, 7.5]);
+        if let Some(g) = self.pages[page_idx].gates.iter_mut().find(|g| g.id == disp1_id) {
+            g.lparams.insert("VRAM_BASE".into(), "0x8000".into());
+            g.lparams.insert("RESOLUTION".into(), "64x32".into());
+            g.lparams.insert("PALETTE".into(), "MATRIX_GREEN".into());
+        }
+
+        // Secondary Display Monitor #2 (Game Boy 4-Color, 64x32 @ 0x8000 Mirror)
+        let disp2_id = add_gate(self, page_idx, "DISPLAY_COMPONENT", [11.5, -6.5]);
+        if let Some(g) = self.pages[page_idx].gates.iter_mut().find(|g| g.id == disp2_id) {
+            g.lparams.insert("VRAM_BASE".into(), "0x8000".into());
+            g.lparams.insert("RESOLUTION".into(), "64x32".into());
+            g.lparams.insert("PALETTE".into(), "GAMEBOY".into());
+        }
+
+        self.connect_pins(lib, page_idx, clk_id, "CLK", cpu_id, "CLK", "SYS_CLK");
+        self.connect_pins(lib, page_idx, rst_sw, "OUT", cpu_id, "RST", "SYS_RST");
+        self.connect_pins(lib, page_idx, kb_id, "P1_W", cpu_id, "IN_3", "KEY_W");
+        self.connect_pins(lib, page_idx, kb_id, "P1_S", cpu_id, "IN_2", "KEY_S");
+        self.connect_pins(lib, page_idx, kb_id, "P2_UP", cpu_id, "IN_1", "KEY_UP");
+        self.connect_pins(lib, page_idx, kb_id, "P2_DN", cpu_id, "IN_0", "KEY_DN");
+
+        self.connect_pins(lib, page_idx, cpu_id, "RW", disp1_id, "WE", "VRAM_WE");
+        self.connect_pins(lib, page_idx, cpu_id, "RW", disp2_id, "WE", "VRAM_WE");
+        self.rebuild_wire_geometry(lib, page_idx);
     }
 
     pub fn connect_pins(
@@ -1194,6 +1260,7 @@ impl CircuitSimulator {
                         &shared_junction_states,
                         &local_junction_states,
                         &mut self.pause_requested_by_gate,
+                        &mut self.cpu,
                     );
                 }
             }
@@ -1278,6 +1345,7 @@ fn evaluate_gate(
     shared_junction_states: &HashMap<String, LogicState>,
     local_junction_states: &HashMap<String, LogicState>,
     pause_requested: &mut bool,
+    cpu: &mut crate::cpu::CpuComponent,
 ) {
     match def.logic_type.as_str() {
         "AND" => {
@@ -1847,6 +1915,103 @@ fn evaluate_gate(
             if let Some(spec) = lib.custom_specs.get(&g.type_name) {
                 spec.evaluate(&mut g.pin_states, &mut g.lparams, &mut g.prev_clock);
             }
+        }
+        "KEYBOARD_INPUT" => {
+            let ks = cpu.keyboard.effective_state();
+            g.pin_states.insert(
+                "P1_W".into(),
+                if ks.p1_up { LogicState::One } else { LogicState::Zero },
+            );
+            g.pin_states.insert(
+                "P1_S".into(),
+                if ks.p1_down { LogicState::One } else { LogicState::Zero },
+            );
+            g.pin_states.insert(
+                "P2_UP".into(),
+                if ks.p2_up { LogicState::One } else { LogicState::Zero },
+            );
+            g.pin_states.insert(
+                "P2_DN".into(),
+                if ks.p2_down { LogicState::One } else { LogicState::Zero },
+            );
+            g.pin_states.insert(
+                "START".into(),
+                if ks.start { LogicState::One } else { LogicState::Zero },
+            );
+        }
+        "CPU" => {
+            let rst = in_bit(g, "RST", false) == LogicState::One;
+            if rst {
+                cpu.reset();
+            } else {
+                // Capture GPIO inputs IN_0..IN_3 into MMIO_GPIO_IN (0xF023)
+                let mut gpio_in = 0u8;
+                for i in 0..4 {
+                    if in_bit(g, &format!("IN_{i}"), false) == LogicState::One {
+                        gpio_in |= 1 << i;
+                    }
+                }
+                cpu.bus.data[crate::cpu::bus::MMIO_GPIO_IN as usize] = gpio_in;
+
+                // If running attached to external circuit clock, step on rising CLK edge
+                let clk = in_bit(g, "CLK", false);
+                if !cpu.use_internal_clock && cpu.running && g.prev_clock == LogicState::Zero && clk == LogicState::One {
+                    cpu.single_step();
+                }
+                g.prev_clock = clk;
+            }
+
+            let addr_low = (cpu.bus.last_bus_addr & 0x0F) as u8;
+            let gpio_out = cpu.bus.peek8(crate::cpu::bus::MMIO_GPIO_OUT as u32);
+            let data_low = if gpio_out != 0 {
+                gpio_out & 0x0F
+            } else {
+                cpu.bus.last_bus_data & 0x0F
+            };
+            for i in 0..4 {
+                g.pin_states.insert(
+                    format!("ADDR_{i}"),
+                    if ((addr_low >> i) & 1) != 0 {
+                        LogicState::One
+                    } else {
+                        LogicState::Zero
+                    },
+                );
+                g.pin_states.insert(
+                    format!("DATA_{i}"),
+                    if ((data_low >> i) & 1) != 0 {
+                        LogicState::One
+                    } else {
+                        LogicState::Zero
+                    },
+                );
+            }
+            g.pin_states.insert(
+                "RW".into(),
+                if cpu.bus.last_bus_write {
+                    LogicState::One
+                } else {
+                    LogicState::Zero
+                },
+            );
+            g.pin_states.insert(
+                "HALT".into(),
+                if cpu.core.get_state().halted {
+                    LogicState::One
+                } else {
+                    LogicState::Zero
+                },
+            );
+        }
+        "VRAM_DISPLAY" => {
+            g.pin_states.insert(
+                "VSYNC".into(),
+                if cpu.bus.vsync_ready {
+                    LogicState::One
+                } else {
+                    LogicState::Zero
+                },
+            );
         }
         _ => {}
     }

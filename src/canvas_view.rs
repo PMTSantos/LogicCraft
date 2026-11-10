@@ -495,9 +495,19 @@ impl LogicCraftApp {
                         page,
                         g,
                         def,
+                        &self.sim.cpu,
                         self.dark_mode,
                         self.show_wire_conn,
                     );
+
+                    // Double-click CPU component to open CPU & Assembly Debugger Studio
+                    if resp.double_clicked() && g.type_name == "CPU_COMPONENT" {
+                        if let Some(mp) = pointer_pos {
+                            if gate_rect.contains(mp) {
+                                self.show_cpu_studio = true;
+                            }
+                        }
+                    }
 
                     // Check pin hover / click (only on click, never hijack dragging!)
                     for pin in def.inputs.iter().chain(def.outputs.iter()) {
