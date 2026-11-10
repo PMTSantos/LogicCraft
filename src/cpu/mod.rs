@@ -283,18 +283,98 @@ pub struct KeyboardInputComponent {
 
 impl KeyboardInputComponent {
     pub fn effective_state(&self) -> KeyboardState {
+        let p1_up = self.state.p1_up || self.canvas_override.p1_up;
+        let p1_down = self.state.p1_down || self.canvas_override.p1_down;
+        let p1_left = self.state.p1_left || self.canvas_override.p1_left;
+        let p1_right = self.state.p1_right || self.canvas_override.p1_right;
+        let p2_up = self.state.p2_up || self.canvas_override.p2_up;
+        let p2_down = self.state.p2_down || self.canvas_override.p2_down;
+        let p2_left = self.state.p2_left || self.canvas_override.p2_left;
+        let p2_right = self.state.p2_right || self.canvas_override.p2_right;
+        let space = self.state.space || self.canvas_override.space;
+        let enter = self.state.enter || self.canvas_override.enter;
+        let start = self.state.start || self.canvas_override.start || space || enter;
+        let backspace = self.state.backspace || self.canvas_override.backspace;
+        let escape = self.state.escape || self.canvas_override.escape;
+        let shift = self.state.shift || self.canvas_override.shift;
+        let ascii_code = if self.state.ascii_code != 0 {
+            self.state.ascii_code
+        } else {
+            self.canvas_override.ascii_code
+        };
+        let last_key = if self.state.last_key != 0 {
+            self.state.last_key
+        } else if self.canvas_override.last_key != 0 {
+            self.canvas_override.last_key
+        } else {
+            ascii_code
+        };
+        let key_valid = self.state.key_valid
+            || self.canvas_override.key_valid
+            || ascii_code != 0
+            || p1_up
+            || p1_down
+            || p1_left
+            || p1_right
+            || p2_up
+            || p2_down
+            || p2_left
+            || p2_right
+            || start
+            || backspace
+            || escape;
+
         KeyboardState {
-            p1_up: self.state.p1_up || self.canvas_override.p1_up,
-            p1_down: self.state.p1_down || self.canvas_override.p1_down,
-            p2_up: self.state.p2_up || self.canvas_override.p2_up,
-            p2_down: self.state.p2_down || self.canvas_override.p2_down,
-            start: self.state.start || self.canvas_override.start,
-            last_key: if self.state.last_key != 0 {
-                self.state.last_key
-            } else {
-                self.canvas_override.last_key
-            },
+            p1_up,
+            p1_down,
+            p1_left,
+            p1_right,
+            p2_up,
+            p2_down,
+            p2_left,
+            p2_right,
+            start,
+            space,
+            enter,
+            backspace,
+            escape,
+            shift,
+            key_valid,
+            ascii_code,
+            last_key,
         }
+    }
+
+    /// Triggers a virtual key press from clicking a keycap on the canvas or in the Inspector.
+    pub fn press_virtual_key(&mut self, code: u8) {
+        self.canvas_override = KeyboardState {
+            p1_up: code == b'W',
+            p1_down: code == b'S',
+            p1_left: code == b'A',
+            p1_right: code == b'D',
+            p2_up: code == 0x11,   // Up Arrow
+            p2_down: code == 0x12, // Down Arrow
+            p2_left: code == 0x13, // Left Arrow
+            p2_right: code == 0x14,// Right Arrow
+            start: code == b' ' || code == 0x0D,
+            space: code == b' ',
+            enter: code == 0x0D,
+            backspace: code == 0x08,
+            escape: code == 0x1B,
+            shift: false,
+            key_valid: true,
+            ascii_code: code,
+            last_key: code,
+        };
+        self.state.last_key = code;
+    }
+
+    pub fn release_virtual_keys(&mut self) {
+        let last = self.canvas_override.last_key;
+        self.canvas_override = KeyboardState {
+            last_key: last,
+            ..Default::default()
+        };
     }
 }
 
@@ -595,6 +675,7 @@ mod tests {
                 p2_down: true,
                 start: false,
                 last_key: b'W',
+                ..Default::default()
             });
             let mut core: Box<dyn CpuCore> = match arch {
                 CpuArch::Lc16 => Box::new(Lc16Core::new()),
@@ -628,6 +709,7 @@ mod tests {
                 p2_down: true,
                 start: false,
                 last_key: b'W',
+                ..Default::default()
             });
             for _frame in 0..3 {
                 bus.notify_frame_tick();
@@ -650,5 +732,41 @@ mod tests {
                 lit_pixels
             );
         }
+    }
+
+    #[test]
+    fn test_full_keyboard_mmio_and_pin_descriptions() {
+        let lib = crate::library::GateLibrary::new();
+        for comp_name in [
+            "CPU_COMPONENT",
+            "DISPLAY_COMPONENT",
+            "KEYBOARD_COMPONENT",
+            "FULL_KEYBOARD_COMPONENT",
+        ] {
+            let def = lib.get(comp_name).expect(comp_name);
+            for pin in def.inputs.iter().chain(def.outputs.iter()) {
+                assert!(
+                    crate::library::describe_pin(comp_name, &pin.name, crate::i18n::Locale::En)
+                        .is_some(),
+                    "Missing EN pin description for {comp_name}::{}",
+                    pin.name
+                );
+                assert!(
+                    crate::library::describe_pin(comp_name, &pin.name, crate::i18n::Locale::Pt)
+                        .is_some(),
+                    "Missing PT pin description for {comp_name}::{}",
+                    pin.name
+                );
+            }
+        }
+
+        let mut sim = crate::simulator::CircuitSimulator::new(&lib);
+        sim.populate_keyboard_terminal_demo(&lib);
+        sim.cpu.keyboard.press_virtual_key(b'K');
+        sim.cpu.bus.update_keys(sim.cpu.keyboard.effective_state());
+        sim.step(&lib);
+
+        assert_eq!(sim.cpu.bus.peek8(MMIO_KEY_ASCII as u32), b'K');
+        assert_eq!(sim.cpu.bus.peek8(MMIO_KEY_LAST as u32), b'K');
     }
 }

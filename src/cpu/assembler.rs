@@ -52,6 +52,10 @@ pub fn assemble(source: &str, arch: CpuArch) -> Result<AssembledProgram, Vec<Ass
     constants.insert("MMIO_KEY_P2_UP".to_string(), 0xF003);
     constants.insert("MMIO_KEY_P2_DOWN".to_string(), 0xF004);
     constants.insert("MMIO_KEY_START".to_string(), 0xF005);
+    constants.insert("MMIO_KEY_LAST".to_string(), 0xF006);
+    constants.insert("MMIO_KEY_ASCII".to_string(), 0xF007);
+    constants.insert("MMIO_KEY_DIR".to_string(), 0xF008);
+    constants.insert("MMIO_KEY_MODIFIERS".to_string(), 0xF009);
     constants.insert("MMIO_RNG".to_string(), 0xF010);
     constants.insert("MMIO_TICK".to_string(), 0xF012);
     constants.insert("MMIO_VSYNC".to_string(), 0xF016);

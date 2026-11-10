@@ -772,6 +772,115 @@ impl CircuitSimulator {
         self.rebuild_wire_geometry(lib, page_idx);
     }
 
+    /// Demo 1: Standalone 4-Bit Synchronous Counter & Full Adder
+    pub fn populate_counter_adder_demo(&mut self, lib: &GateLibrary) {
+        self.populate_demo_circuit(lib);
+        self.pages.truncate(1);
+        self.pages[0].name = "4-Bit Counter & Full Adder".into();
+        self.current_page = 0;
+        for _ in 0..8 {
+            self.step(lib);
+        }
+    }
+
+    /// Demo 2: Standalone 4x4 RAM Memory & Hex Address Decoder
+    pub fn populate_ram_decoder_demo(&mut self, lib: &GateLibrary) {
+        self.populate_demo_circuit(lib);
+        let ram_page = self.pages.remove(1);
+        self.pages = vec![ram_page];
+        self.pages[0].name = "4x4 RAM & Hex Decoder".into();
+        self.current_page = 0;
+        self.oscope_channels.clear();
+        for _ in 0..4 {
+            self.step(lib);
+        }
+    }
+
+    /// Demo 3: Standalone 2-Player Pong Arcade (CPU + Dual MMIO VRAM Monitors + Keyboard)
+    pub fn populate_pong_demo_standalone(&mut self, lib: &GateLibrary) {
+        self.pages = vec![CircuitPage::new("Pong Arcade (CPU + MMIO)")];
+        self.current_page = 0;
+        self.oscope_channels.clear();
+        self.populate_pong_page(lib, 0);
+        self.cpu.load_pong_demo();
+        self.cpu.running = true;
+        for _ in 0..4 {
+            self.step(lib);
+        }
+    }
+
+    /// Demo 4: Full QWERTY / ASCII Keyboard + 8-Bit Hex Display + CPU + Dual VRAM Monitors
+    pub fn populate_keyboard_terminal_demo(&mut self, lib: &GateLibrary) {
+        self.pages = vec![CircuitPage::new("Full QWERTY Keyboard + CPU + VRAM")];
+        self.current_page = 0;
+        self.oscope_channels.clear();
+
+        let add_gate = |sim: &mut Self, p_idx: usize, type_name: &str, pos: [f32; 2]| -> u32 {
+            let def = lib.get(type_name).expect(type_name);
+            let id = sim.next_gate_id;
+            sim.next_gate_id += 1;
+            let inst = GateInstance::new(id, def, pos);
+            sim.pages[p_idx].gates.push(inst);
+            id
+        };
+
+        let lbl_id = add_gate(self, 0, "AA_LABEL", [0.0, 17.5]);
+        if let Some(g) = self.pages[0].gates.iter_mut().find(|g| g.id == lbl_id) {
+            g.gparams.insert(
+                "LABEL_TEXT".into(),
+                "Full QWERTY / ASCII Keyboard + 8-Bit Hex Display + CPU & Dual VRAM Monitors".into(),
+            );
+        }
+
+        let fkb_id = add_gate(self, 0, "FULL_KEYBOARD_COMPONENT", [-22.5, 4.5]);
+        let hex8_id = add_gate(self, 0, "GI_LED_DISPLAY_8BIT", [-4.5, 11.5]);
+        let valid_led = add_gate(self, 0, "GA_LED", [3.0, 11.5]);
+        let cpu_id = add_gate(self, 0, "CPU_COMPONENT", [-4.5, -2.5]);
+        let disp1_id = add_gate(self, 0, "DISPLAY_COMPONENT", [16.5, 7.5]);
+        if let Some(g) = self.pages[0].gates.iter_mut().find(|g| g.id == disp1_id) {
+            g.lparams.insert("VRAM_BASE".into(), "0x8000".into());
+            g.lparams.insert("RESOLUTION".into(), "64x32".into());
+            g.lparams.insert("PALETTE".into(), "AMBER".into());
+        }
+        let disp2_id = add_gate(self, 0, "DISPLAY_COMPONENT", [16.5, -6.5]);
+        if let Some(g) = self.pages[0].gates.iter_mut().find(|g| g.id == disp2_id) {
+            g.lparams.insert("VRAM_BASE".into(), "0x8000".into());
+            g.lparams.insert("RESOLUTION".into(), "64x32".into());
+            g.lparams.insert("PALETTE".into(), "MATRIX_GREEN".into());
+        }
+
+        // Connect 8-bit ASCII output bus from Full Keyboard to 8-Bit Hex Display
+        for b in 0..8 {
+            self.connect_pins(
+                lib,
+                0,
+                fkb_id,
+                &format!("ASCII_{b}"),
+                hex8_id,
+                &format!("IN_{b}"),
+                &format!("ASCII_{b}"),
+            );
+        }
+        self.connect_pins(lib, 0, fkb_id, "KEY_VALID", valid_led, "IN_0", "KEY_VALID");
+
+        // Connect directional outputs from Full Keyboard to CPU GPIO inputs
+        self.connect_pins(lib, 0, fkb_id, "UP", cpu_id, "IN_3", "DIR_UP");
+        self.connect_pins(lib, 0, fkb_id, "DOWN", cpu_id, "IN_2", "DIR_DN");
+        self.connect_pins(lib, 0, fkb_id, "LEFT", cpu_id, "IN_1", "DIR_LT");
+        self.connect_pins(lib, 0, fkb_id, "RIGHT", cpu_id, "IN_0", "DIR_RT");
+        self.connect_pins(lib, 0, cpu_id, "RW", disp1_id, "WE", "VRAM_WE");
+        self.connect_pins(lib, 0, cpu_id, "RW", disp2_id, "WE", "VRAM_WE");
+
+        self.rebuild_wire_geometry(lib, 0);
+        self.cpu.load_pong_demo();
+        self.cpu.running = true;
+        self.cpu.keyboard.press_virtual_key(b'A');
+        self.cpu.keyboard.release_virtual_keys();
+        for _ in 0..4 {
+            self.step(lib);
+        }
+    }
+
     pub fn connect_pins(
         &mut self,
         lib: &GateLibrary,
@@ -1917,6 +2026,11 @@ fn evaluate_gate(
             }
         }
         "KEYBOARD_INPUT" => {
+            if in_bit(g, "RST", false) == LogicState::One {
+                cpu.keyboard.state = crate::cpu::bus::KeyboardState::default();
+                cpu.keyboard.canvas_override = crate::cpu::bus::KeyboardState::default();
+                cpu.bus.update_keys(crate::cpu::bus::KeyboardState::default());
+            }
             let ks = cpu.keyboard.effective_state();
             g.pin_states.insert(
                 "P1_W".into(),
@@ -1937,6 +2051,87 @@ fn evaluate_gate(
             g.pin_states.insert(
                 "START".into(),
                 if ks.start { LogicState::One } else { LogicState::Zero },
+            );
+        }
+        "FULL_KEYBOARD_INPUT" => {
+            if in_bit(g, "RST", false) == LogicState::One {
+                cpu.keyboard.state = crate::cpu::bus::KeyboardState::default();
+                cpu.keyboard.canvas_override = crate::cpu::bus::KeyboardState::default();
+                cpu.bus.update_keys(crate::cpu::bus::KeyboardState::default());
+            } else if in_bit(g, "CLR", false) == LogicState::One {
+                cpu.keyboard.state.last_key = 0;
+                cpu.keyboard.canvas_override.last_key = 0;
+                cpu.bus.keys.last_key = 0;
+                cpu.bus.data[crate::cpu::bus::MMIO_KEY_LAST as usize] = 0;
+            }
+            let ks = cpu.keyboard.effective_state();
+            let live_only = g
+                .lparams
+                .get("OUTPUT_MODE")
+                .map(|m| m.eq_ignore_ascii_case("LIVE"))
+                .unwrap_or(false);
+            let out_byte = if live_only || ks.ascii_code != 0 {
+                ks.ascii_code
+            } else {
+                ks.last_key
+            };
+            for i in 0..8 {
+                g.pin_states.insert(
+                    format!("ASCII_{i}"),
+                    if ((out_byte >> i) & 1) != 0 {
+                        LogicState::One
+                    } else {
+                        LogicState::Zero
+                    },
+                );
+            }
+            g.pin_states.insert(
+                "KEY_VALID".into(),
+                if ks.key_valid {
+                    LogicState::One
+                } else {
+                    LogicState::Zero
+                },
+            );
+            g.pin_states.insert(
+                "UP".into(),
+                if ks.p1_up || ks.p2_up {
+                    LogicState::One
+                } else {
+                    LogicState::Zero
+                },
+            );
+            g.pin_states.insert(
+                "DOWN".into(),
+                if ks.p1_down || ks.p2_down {
+                    LogicState::One
+                } else {
+                    LogicState::Zero
+                },
+            );
+            g.pin_states.insert(
+                "LEFT".into(),
+                if ks.p1_left || ks.p2_left {
+                    LogicState::One
+                } else {
+                    LogicState::Zero
+                },
+            );
+            g.pin_states.insert(
+                "RIGHT".into(),
+                if ks.p1_right || ks.p2_right {
+                    LogicState::One
+                } else {
+                    LogicState::Zero
+                },
+            );
+            g.pin_states.insert(
+                "ENTER".into(),
+                if ks.enter || ks.space || ks.start {
+                    LogicState::One
+                } else {
+                    LogicState::Zero
+                },
             );
         }
         "CPU" => {
@@ -2004,6 +2199,21 @@ fn evaluate_gate(
             );
         }
         "VRAM_DISPLAY" => {
+            let disp = crate::cpu::DisplayComponent::from_lparams(&g.lparams);
+            let (res_w, res_h) = disp.resolution.dimensions();
+            if in_bit(g, "RST", false) == LogicState::One {
+                let start = disp.vram_base as usize;
+                let end = (start + res_w * res_h).min(crate::cpu::bus::MEM_SIZE);
+                if start < end {
+                    cpu.bus.data[start..end].fill(0);
+                }
+            }
+            let clk = in_bit(g, "CLK", false);
+            let we = in_bit(g, "WE", true) == LogicState::One;
+            if g.prev_clock == LogicState::Zero && clk == LogicState::One && we {
+                cpu.bus.notify_frame_tick();
+            }
+            g.prev_clock = clk;
             g.pin_states.insert(
                 "VSYNC".into(),
                 if cpu.bus.vsync_ready {

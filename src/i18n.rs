@@ -372,18 +372,27 @@ impl Locale {
                 Self::De => "Programmierbare CPU (RV32I / LC-16 / MIN-8)".into(),
                 Self::En => raw.into(),
             },
-            "VRAM Graphical Monitor (MMIO)" => match self {
+            "VRAM Graphical Monitor (MMIO)" | "VRAM Graphical Display (MMIO Monitor)" => match self {
                 Self::Pt => "Monitor Gráfico VRAM (MMIO)".into(),
                 Self::Es => "Monitor Gráfico VRAM (MMIO)".into(),
                 Self::Fr => "Moniteur Graphique VRAM (MMIO)".into(),
                 Self::De => "VRAM Grafikmonitor (MMIO)".into(),
                 Self::En => raw.into(),
             },
-            "Arcade Keyboard Input (W/S, Up/Down, Space)" => match self {
-                Self::Pt => "Teclado Arcade (W/S, Cima/Baixo, Espaço)".into(),
-                Self::Es => "Teclado Arcade (W/S, Arriba/Abajo, Espacio)".into(),
-                Self::Fr => "Clavier Arcade (W/S, Haut/Bas, Espace)".into(),
-                Self::De => "Arcade-Tastatur (W/S, Auf/Ab, Leertaste)".into(),
+            "Arcade Keyboard Input (W/S, Up/Down, Space)"
+            | "Arcade Keyboard Controller (MMIO W/S/Up/Down)"
+            | "Keyboard Input Controller (MMIO W/S/Up/Down)" => match self {
+                Self::Pt => "Teclado Arcade (MMIO W/S, Cima/Baixo, Espaço)".into(),
+                Self::Es => "Teclado Arcade (MMIO W/S, Arriba/Abajo, Espacio)".into(),
+                Self::Fr => "Clavier Arcade (MMIO W/S, Haut/Bas, Espace)".into(),
+                Self::De => "Arcade-Tastatur (MMIO W/S, Auf/Ab, Leertaste)".into(),
+                Self::En => raw.into(),
+            },
+            "Full QWERTY / ASCII Keyboard (MMIO + 8-Bit ASCII)" => match self {
+                Self::Pt => "Teclado Completo QWERTY / ASCII (MMIO + 8 Bits)".into(),
+                Self::Es => "Teclado Completo QWERTY / ASCII (MMIO + 8 Bits)".into(),
+                Self::Fr => "Clavier Complet QWERTY / ASCII (MMIO + 8 Bits)".into(),
+                Self::De => "Vollständige QWERTY / ASCII-Tastatur (MMIO + 8-Bit)".into(),
                 Self::En => raw.into(),
             },
             _ => raw.to_string(),
@@ -397,6 +406,7 @@ pub struct UiStrings {
     pub menu_file: &'static str,
     pub menu_edit: &'static str,
     pub menu_view: &'static str,
+    pub menu_demo: &'static str,
     pub menu_language: &'static str,
     pub menu_help: &'static str,
 
@@ -558,6 +568,7 @@ pub const EN_STRINGS: UiStrings = UiStrings {
     menu_file: "File",
     menu_edit: "Edit",
     menu_view: "View",
+    menu_demo: "Demo",
     menu_language: "Language",
     menu_help: "Help",
 
@@ -708,6 +719,7 @@ pub const PT_STRINGS: UiStrings = UiStrings {
     menu_file: "Ficheiro",
     menu_edit: "Editar",
     menu_view: "Ver",
+    menu_demo: "Demo",
     menu_language: "Idioma",
     menu_help: "Ajuda",
 
@@ -858,6 +870,7 @@ pub const ES_STRINGS: UiStrings = UiStrings {
     menu_file: "Archivo",
     menu_edit: "Editar",
     menu_view: "Ver",
+    menu_demo: "Demo",
     menu_language: "Idioma",
     menu_help: "Ayuda",
 
@@ -1008,6 +1021,7 @@ pub const FR_STRINGS: UiStrings = UiStrings {
     menu_file: "Fichier",
     menu_edit: "Édition",
     menu_view: "Affichage",
+    menu_demo: "Démo",
     menu_language: "Langue",
     menu_help: "Aide",
 
@@ -1158,6 +1172,7 @@ pub const DE_STRINGS: UiStrings = UiStrings {
     menu_file: "Datei",
     menu_edit: "Bearbeiten",
     menu_view: "Ansicht",
+    menu_demo: "Demo",
     menu_language: "Sprache",
     menu_help: "Hilfe",
 

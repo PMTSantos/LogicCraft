@@ -8,13 +8,16 @@
 //!   - Default Display #1 Base: `0x8000` (e.g. 64x32 = 2048 bytes, 64x64 = 4096 bytes, 128x64 = 8192 bytes)
 //!   - Additional Displays can map to `0x8000` (mirror) or distinct bases (`0x8800`, `0x9000`, `0xA000`, etc.)
 //! - `0xF000 ..= 0xFFFF` (4 KB): Memory-Mapped I/O (MMIO) Peripherals
-//!   - `0xF000` (`MMIO_KEY_STATE`): Bitmask (`bit0=W`, `bit1=S`, `bit2=Up`, `bit3=Down`, `bit4=Space/Enter`)
+//!   - `0xF000` (`MMIO_KEY_STATE`): Bitmask (`bit0=W`, `bit1=S`, `bit2=Up`, `bit3=Down`, `bit4=Space/Enter`, `bit5=A/Left`, `bit6=D/Right`, `bit7=KeyValid`)
 //!   - `0xF001` (`MMIO_KEY_P1_UP`): Player 1 Up (`W`) -> `0` or `1`
 //!   - `0xF002` (`MMIO_KEY_P1_DOWN`): Player 1 Down (`S`) -> `0` or `1`
 //!   - `0xF003` (`MMIO_KEY_P2_UP`): Player 2 Up (`ArrowUp`) -> `0` or `1`
 //!   - `0xF004` (`MMIO_KEY_P2_DOWN`): Player 2 Down (`ArrowDown`) -> `0` or `1`
-//!   - `0xF005` (`MMIO_KEY_START`): Start / Reset (`Space` or `Enter`) -> `0` or `1`
-//!   - `0xF006` (`MMIO_KEY_LAST`): Last pressed key ASCII/code
+//!   - `0xF005` (`MMIO_KEY_START`): Start / Action (`Space` or `Enter`) -> `0` or `1`
+//!   - `0xF006` (`MMIO_KEY_LAST`): Last pressed key 8-bit ASCII code (sticky until cleared)
+//!   - `0xF007` (`MMIO_KEY_ASCII`): Live 8-bit ASCII code of currently active key (`0` when idle)
+//!   - `0xF008` (`MMIO_KEY_DIR`): 8-bit directional mask (`bit0=W, bit1=S, bit2=A, bit3=D, bit4=Up, bit5=Down, bit6=Left, bit7=Right`)
+//!   - `0xF009` (`MMIO_KEY_MODIFIERS`): Function/Control mask (`bit0=Space, bit1=Enter, bit2=Bksp, bit3=Esc, bit4=Shift, bit7=KeyValid`)
 //!   - `0xF010` (`MMIO_RNG`): Pseudo-random 8/16-bit value (advances LCG on read)
 //!   - `0xF012` (`MMIO_TICK_LO`): 32-bit tick/frame counter (little-endian `0xF012..0xF015`)
 //!   - `0xF016` (`MMIO_VSYNC`): Returns `1` when a new display frame tick is ready, `0` otherwise
@@ -41,6 +44,9 @@ pub const MMIO_KEY_P2_UP: u16 = 0xF003;
 pub const MMIO_KEY_P2_DOWN: u16 = 0xF004;
 pub const MMIO_KEY_START: u16 = 0xF005;
 pub const MMIO_KEY_LAST: u16 = 0xF006;
+pub const MMIO_KEY_ASCII: u16 = 0xF007;
+pub const MMIO_KEY_DIR: u16 = 0xF008;
+pub const MMIO_KEY_MODIFIERS: u16 = 0xF009;
 
 pub const MMIO_RNG: u16 = 0xF010;
 pub const MMIO_TICK_LO: u16 = 0xF012;
@@ -56,14 +62,28 @@ pub const KEY_BIT_P1_DOWN: u8 = 1 << 1;
 pub const KEY_BIT_P2_UP: u8 = 1 << 2;
 pub const KEY_BIT_P2_DOWN: u8 = 1 << 3;
 pub const KEY_BIT_START: u8 = 1 << 4;
+pub const KEY_BIT_P1_LEFT: u8 = 1 << 5;
+pub const KEY_BIT_P1_RIGHT: u8 = 1 << 6;
+pub const KEY_BIT_VALID: u8 = 1 << 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct KeyboardState {
     pub p1_up: bool,
     pub p1_down: bool,
+    pub p1_left: bool,
+    pub p1_right: bool,
     pub p2_up: bool,
     pub p2_down: bool,
+    pub p2_left: bool,
+    pub p2_right: bool,
     pub start: bool,
+    pub space: bool,
+    pub enter: bool,
+    pub backspace: bool,
+    pub escape: bool,
+    pub shift: bool,
+    pub key_valid: bool,
+    pub ascii_code: u8,
     pub last_key: u8,
 }
 
@@ -84,6 +104,67 @@ impl KeyboardState {
         }
         if self.start {
             mask |= KEY_BIT_START;
+        }
+        if self.p1_left {
+            mask |= KEY_BIT_P1_LEFT;
+        }
+        if self.p1_right {
+            mask |= KEY_BIT_P1_RIGHT;
+        }
+        if self.key_valid {
+            mask |= KEY_BIT_VALID;
+        }
+        mask
+    }
+
+    pub fn to_dir_mask(self) -> u8 {
+        let mut mask = 0u8;
+        if self.p1_up {
+            mask |= 1 << 0;
+        }
+        if self.p1_down {
+            mask |= 1 << 1;
+        }
+        if self.p1_left {
+            mask |= 1 << 2;
+        }
+        if self.p1_right {
+            mask |= 1 << 3;
+        }
+        if self.p2_up {
+            mask |= 1 << 4;
+        }
+        if self.p2_down {
+            mask |= 1 << 5;
+        }
+        if self.p2_left {
+            mask |= 1 << 6;
+        }
+        if self.p2_right {
+            mask |= 1 << 7;
+        }
+        mask
+    }
+
+    pub fn to_modifier_mask(self) -> u8 {
+        let mut mask = 0u8;
+        if self.space || self.start {
+            mask |= 1 << 0;
+        }
+        if self.enter {
+            mask |= 1 << 1;
+        }
+        if self.backspace {
+            mask |= 1 << 2;
+        }
+        if self.escape {
+            mask |= 1 << 3;
+        }
+        if self.shift {
+            mask |= 1 << 4;
+        }
+        if self.key_valid {
+            mask |= 1 << 7;
         }
         mask
     }
@@ -169,6 +250,9 @@ impl MemoryBus {
         if self.keys.last_key != 0 {
             self.data[MMIO_KEY_LAST as usize] = self.keys.last_key;
         }
+        self.data[MMIO_KEY_ASCII as usize] = self.keys.ascii_code;
+        self.data[MMIO_KEY_DIR as usize] = self.keys.to_dir_mask();
+        self.data[MMIO_KEY_MODIFIERS as usize] = self.keys.to_modifier_mask();
     }
 
     pub fn notify_frame_tick(&mut self) {
@@ -200,6 +284,9 @@ impl MemoryBus {
             MMIO_KEY_P2_DOWN => u8::from(self.keys.p2_down),
             MMIO_KEY_START => u8::from(self.keys.start),
             MMIO_KEY_LAST => self.keys.last_key,
+            MMIO_KEY_ASCII => self.keys.ascii_code,
+            MMIO_KEY_DIR => self.keys.to_dir_mask(),
+            MMIO_KEY_MODIFIERS => self.keys.to_modifier_mask(),
             MMIO_RNG => {
                 let r = self.next_rng_byte();
                 self.data[a as usize] = r;
@@ -238,6 +325,9 @@ impl MemoryBus {
             MMIO_KEY_P2_DOWN => u8::from(self.keys.p2_down),
             MMIO_KEY_START => u8::from(self.keys.start),
             MMIO_KEY_LAST => self.keys.last_key,
+            MMIO_KEY_ASCII => self.keys.ascii_code,
+            MMIO_KEY_DIR => self.keys.to_dir_mask(),
+            MMIO_KEY_MODIFIERS => self.keys.to_modifier_mask(),
             _ => self.data[a as usize],
         }
     }

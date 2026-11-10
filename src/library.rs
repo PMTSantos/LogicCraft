@@ -47,6 +47,7 @@ pub enum GateShapeStyle {
     CpuProcessor,
     VramDisplay,
     KeyboardInput,
+    FullKeyboard,
 }
 
 #[derive(Debug, Clone)]
@@ -1204,7 +1205,7 @@ impl GateLibrary {
         });
         cpu_periphs.push(GateDef {
             type_name: "KEYBOARD_COMPONENT".into(),
-            caption: "Keyboard Input Controller (MMIO W/S/Up/Down)".into(),
+            caption: "Arcade Keyboard Controller (MMIO W/S/Up/Down)".into(),
             category: "12 - CPU & Peripherals".into(),
             logic_type: "KEYBOARD_INPUT".into(),
             inputs: vec![pin("RST", [-5.0, 0.0], false, false)],
@@ -1221,6 +1222,39 @@ impl GateLibrary {
             in_inverted: false,
             default_gparams: HashMap::new(),
             default_lparams: map(&[("MMIO_ADDR", "0xF000")]),
+            custom_lines: Vec::new(),
+        });
+        cpu_periphs.push(GateDef {
+            type_name: "FULL_KEYBOARD_COMPONENT".into(),
+            caption: "Full QWERTY / ASCII Keyboard (MMIO + 8-Bit ASCII)".into(),
+            category: "12 - CPU & Peripherals".into(),
+            logic_type: "FULL_KEYBOARD_INPUT".into(),
+            inputs: vec![
+                pin("RST", [-9.5, 2.5], false, false),
+                pin("CLR", [-9.5, -2.5], false, false),
+            ],
+            outputs: vec![
+                pin("ASCII_7", [9.5, 5.2], true, false),
+                pin("ASCII_6", [9.5, 4.4], true, false),
+                pin("ASCII_5", [9.5, 3.6], true, false),
+                pin("ASCII_4", [9.5, 2.8], true, false),
+                pin("ASCII_3", [9.5, 2.0], true, false),
+                pin("ASCII_2", [9.5, 1.2], true, false),
+                pin("ASCII_1", [9.5, 0.4], true, false),
+                pin("ASCII_0", [9.5, -0.4], true, false),
+                pin("KEY_VALID", [9.5, -1.4], true, false),
+                pin("UP", [9.5, -2.4], true, false),
+                pin("DOWN", [9.5, -3.2], true, false),
+                pin("LEFT", [9.5, -4.0], true, false),
+                pin("RIGHT", [9.5, -4.8], true, false),
+                pin("ENTER", [9.5, -5.6], true, false),
+            ],
+            half_size: [9.5, 6.2],
+            shape_style: GateShapeStyle::FullKeyboard,
+            out_inverted: false,
+            in_inverted: false,
+            default_gparams: HashMap::new(),
+            default_lparams: map(&[("MMIO_ADDR", "0xF000"), ("OUTPUT_MODE", "LATCHED")]),
             custom_lines: Vec::new(),
         });
         categories.push(GateLibraryCategory {
@@ -1333,5 +1367,426 @@ fn make_n_input_gate(
         default_gparams: HashMap::new(),
         default_lparams: map(&[("INPUT_BITS", &bits.to_string())]),
         custom_lines: Vec::new(),
+    }
+}
+
+/// Returns `(role_title, detailed_description)` for a component pin, localized in PT or EN.
+pub fn describe_pin(
+    type_name: &str,
+    pin_name: &str,
+    locale: crate::i18n::Locale,
+) -> Option<(&'static str, &'static str)> {
+    let is_pt = locale == crate::i18n::Locale::Pt;
+    match type_name {
+        "CPU_COMPONENT" => match pin_name {
+            "CLK" => Some(if is_pt {
+                (
+                    "Clock Externo (IN)",
+                    "Avança 1 instrução da CPU por flanco ascendente (0→1) quando o modo está em 'CIRCUIT PIN'.",
+                )
+            } else {
+                (
+                    "External Clock (IN)",
+                    "Steps 1 CPU instruction per rising edge (0→1) when Clock Mode is set to 'CIRCUIT PIN'.",
+                )
+            }),
+            "RST" => Some(if is_pt {
+                (
+                    "Reset Síncrono (IN)",
+                    "Ativo a Alto (1): reinicia PC=0x0000, registos da CPU e limpa a RAM/VRAM.",
+                )
+            } else {
+                (
+                    "Synchronous Reset (IN)",
+                    "Active High (1): resets PC=0x0000, CPU registers, and clears RAM/VRAM.",
+                )
+            }),
+            "IN_3" => Some(if is_pt {
+                (
+                    "GPIO IN Bit 3 / MSB (IN)",
+                    "Entrada digital mapeada no bit 3 do registo MMIO_GPIO_IN (0xF023).",
+                )
+            } else {
+                (
+                    "GPIO IN Bit 3 / MSB (IN)",
+                    "Digital input mapped to bit 3 of MMIO_GPIO_IN register (0xF023).",
+                )
+            }),
+            "IN_2" => Some(if is_pt {
+                (
+                    "GPIO IN Bit 2 (IN)",
+                    "Entrada digital mapeada no bit 2 do registo MMIO_GPIO_IN (0xF023).",
+                )
+            } else {
+                (
+                    "GPIO IN Bit 2 (IN)",
+                    "Digital input mapped to bit 2 of MMIO_GPIO_IN register (0xF023).",
+                )
+            }),
+            "IN_1" => Some(if is_pt {
+                (
+                    "GPIO IN Bit 1 (IN)",
+                    "Entrada digital mapeada no bit 1 do registo MMIO_GPIO_IN (0xF023).",
+                )
+            } else {
+                (
+                    "GPIO IN Bit 1 (IN)",
+                    "Digital input mapped to bit 1 of MMIO_GPIO_IN register (0xF023).",
+                )
+            }),
+            "IN_0" => Some(if is_pt {
+                (
+                    "GPIO IN Bit 0 / LSB (IN)",
+                    "Entrada digital mapeada no bit 0 do registo MMIO_GPIO_IN (0xF023).",
+                )
+            } else {
+                (
+                    "GPIO IN Bit 0 / LSB (IN)",
+                    "Digital input mapped to bit 0 of MMIO_GPIO_IN register (0xF023).",
+                )
+            }),
+            "ADDR_3" => Some(if is_pt {
+                (
+                    "Barramento Endereço Bit 3 (OUT)",
+                    "Bit 3 (MSB do nibble inferior) do último endereço acedido no barramento de memória.",
+                )
+            } else {
+                (
+                    "Address Bus Bit 3 (OUT)",
+                    "Bit 3 (low-nibble MSB) of the last accessed memory bus address.",
+                )
+            }),
+            "ADDR_2" => Some(if is_pt {
+                (
+                    "Barramento Endereço Bit 2 (OUT)",
+                    "Bit 2 do último endereço acedido no barramento de memória.",
+                )
+            } else {
+                (
+                    "Address Bus Bit 2 (OUT)",
+                    "Bit 2 of the last accessed memory bus address.",
+                )
+            }),
+            "ADDR_1" => Some(if is_pt {
+                (
+                    "Barramento Endereço Bit 1 (OUT)",
+                    "Bit 1 do último endereço acedido no barramento de memória.",
+                )
+            } else {
+                (
+                    "Address Bus Bit 1 (OUT)",
+                    "Bit 1 of the last accessed memory bus address.",
+                )
+            }),
+            "ADDR_0" => Some(if is_pt {
+                (
+                    "Barramento Endereço Bit 0 / LSB (OUT)",
+                    "Bit 0 (LSB) do último endereço acedido no barramento de memória.",
+                )
+            } else {
+                (
+                    "Address Bus Bit 0 / LSB (OUT)",
+                    "Bit 0 (LSB) of the last accessed memory bus address.",
+                )
+            }),
+            "DATA_3" => Some(if is_pt {
+                (
+                    "Barramento Dados / GPIO OUT Bit 3 (OUT)",
+                    "Bit 3 (MSB) da porta MMIO_GPIO_OUT (0xF022) ou do último byte de dados no barramento.",
+                )
+            } else {
+                (
+                    "Data Bus / GPIO OUT Bit 3 (OUT)",
+                    "Bit 3 (MSB) of MMIO_GPIO_OUT (0xF022) or last memory bus data byte.",
+                )
+            }),
+            "DATA_2" => Some(if is_pt {
+                (
+                    "Barramento Dados / GPIO OUT Bit 2 (OUT)",
+                    "Bit 2 da porta MMIO_GPIO_OUT (0xF022) ou do último byte de dados no barramento.",
+                )
+            } else {
+                (
+                    "Data Bus / GPIO OUT Bit 2 (OUT)",
+                    "Bit 2 of MMIO_GPIO_OUT (0xF022) or last memory bus data byte.",
+                )
+            }),
+            "DATA_1" => Some(if is_pt {
+                (
+                    "Barramento Dados / GPIO OUT Bit 1 (OUT)",
+                    "Bit 1 da porta MMIO_GPIO_OUT (0xF022) ou do último byte de dados no barramento.",
+                )
+            } else {
+                (
+                    "Data Bus / GPIO OUT Bit 1 (OUT)",
+                    "Bit 1 of MMIO_GPIO_OUT (0xF022) or last memory bus data byte.",
+                )
+            }),
+            "DATA_0" => Some(if is_pt {
+                (
+                    "Barramento Dados / GPIO OUT Bit 0 (OUT)",
+                    "Bit 0 (LSB) da porta MMIO_GPIO_OUT (0xF022) ou do último byte de dados no barramento.",
+                )
+            } else {
+                (
+                    "Data Bus / GPIO OUT Bit 0 (OUT)",
+                    "Bit 0 (LSB) of MMIO_GPIO_OUT (0xF022) or last memory bus data byte.",
+                )
+            }),
+            "RW" => Some(if is_pt {
+                (
+                    "Sinal Read / Write (OUT)",
+                    "Alto (1) durante escrita na memória/MMIO (Write); Baixo (0) durante leitura/fetch (Read).",
+                )
+            } else {
+                (
+                    "Bus Read / Write Strobe (OUT)",
+                    "High (1) during a Memory/MMIO Write cycle; Low (0) during a Read/Fetch cycle.",
+                )
+            }),
+            "HALT" => Some(if is_pt {
+                (
+                    "Estado HALT da CPU (OUT)",
+                    "Alto (1) quando a CPU executa HALT/EBREAK e para; Baixo (0) enquanto está em execução.",
+                )
+            } else {
+                (
+                    "CPU Halted Status (OUT)",
+                    "High (1) when the CPU executes HALT/EBREAK; Low (0) while actively running.",
+                )
+            }),
+            _ => None,
+        },
+        "DISPLAY_COMPONENT" => match pin_name {
+            "CLK" => Some(if is_pt {
+                (
+                    "Clock de Sincronismo / Refresh (IN)",
+                    "Flanco ascendente (0→1) com WE=1 dispara um pulso de sincronismo de frame (VSYNC) no barramento.",
+                )
+            } else {
+                (
+                    "Frame Sync / Refresh Clock (IN)",
+                    "Rising edge (0→1) with WE=1 triggers a frame VSYNC tick on the memory bus.",
+                )
+            }),
+            "WE" => Some(if is_pt {
+                (
+                    "Write / Sync Enable (IN)",
+                    "Habilita a atualização sincronizada pelo pino CLK (ativo a 1 por omissão se desligado).",
+                )
+            } else {
+                (
+                    "Write / Sync Enable (IN)",
+                    "Enables external clock frame sync on CLK rising edges (defaults High if unconnected).",
+                )
+            }),
+            "RST" => Some(if is_pt {
+                (
+                    "Limpar VRAM / Reset (IN)",
+                    "Ativo a Alto (1): limpa imediatamente toda a região de VRAM deste monitor para 0x00.",
+                )
+            } else {
+                (
+                    "Clear VRAM Reset (IN)",
+                    "Active High (1): immediately clears this monitor's entire VRAM framebuffer region to 0x00.",
+                )
+            }),
+            "EN" => Some(if is_pt {
+                (
+                    "Ativar Monitor / Display Enable (IN)",
+                    "Ativo a Alto (1 por omissão): quando 0, apaga o ecrã (modo blanking / standby).",
+                )
+            } else {
+                (
+                    "Display Enable / Blanking (IN)",
+                    "Active High (defaults to 1): when 0, blanks the monitor screen (standby/blanking mode).",
+                )
+            }),
+            "VSYNC" => Some(if is_pt {
+                (
+                    "Sincronismo Vertical VSYNC (OUT)",
+                    "Emite Alto (1) quando um novo frame de vídeo está pronto (espelha o registo MMIO 0xF016).",
+                )
+            } else {
+                (
+                    "Vertical Sync Output (OUT)",
+                    "Outputs High (1) when a new display frame tick is ready (mirrors MMIO 0xF016).",
+                )
+            }),
+            _ => None,
+        },
+        "KEYBOARD_COMPONENT" => match pin_name {
+            "RST" => Some(if is_pt {
+                (
+                    "Reset do Teclado (IN)",
+                    "Ativo a Alto (1): limpa as teclas premidas/memorizadas e reinicia os registos MMIO 0xF000..0xF009.",
+                )
+            } else {
+                (
+                    "Keyboard Reset (IN)",
+                    "Active High (1): clears latched keys and resets MMIO keyboard registers 0xF000..0xF009.",
+                )
+            }),
+            "P1_W" => Some(if is_pt {
+                (
+                    "Jogador 1 Cima — Tecla 'W' (OUT)",
+                    "Alto (1) enquanto 'W' está premido; mapeado em MMIO 0xF001 e no bit 0 de 0xF000.",
+                )
+            } else {
+                (
+                    "Player 1 Up — 'W' Key (OUT)",
+                    "High (1) while 'W' is held; mapped to MMIO 0xF001 and bit 0 of 0xF000.",
+                )
+            }),
+            "P1_S" => Some(if is_pt {
+                (
+                    "Jogador 1 Baixo — Tecla 'S' (OUT)",
+                    "Alto (1) enquanto 'S' está premido; mapeado em MMIO 0xF002 e no bit 1 de 0xF000.",
+                )
+            } else {
+                (
+                    "Player 1 Down — 'S' Key (OUT)",
+                    "High (1) while 'S' is held; mapped to MMIO 0xF002 and bit 1 of 0xF000.",
+                )
+            }),
+            "P2_UP" => Some(if is_pt {
+                (
+                    "Jogador 2 Cima — Seta Cima (OUT)",
+                    "Alto (1) enquanto Seta Cima está premida; mapeado em MMIO 0xF003 e no bit 2 de 0xF000.",
+                )
+            } else {
+                (
+                    "Player 2 Up — Up Arrow (OUT)",
+                    "High (1) while Up Arrow is held; mapped to MMIO 0xF003 and bit 2 of 0xF000.",
+                )
+            }),
+            "P2_DN" => Some(if is_pt {
+                (
+                    "Jogador 2 Baixo — Seta Baixo (OUT)",
+                    "Alto (1) enquanto Seta Baixo está premida; mapeado em MMIO 0xF004 e no bit 3 de 0xF000.",
+                )
+            } else {
+                (
+                    "Player 2 Down — Down Arrow (OUT)",
+                    "High (1) while Down Arrow is held; mapped to MMIO 0xF004 and bit 3 of 0xF000.",
+                )
+            }),
+            "START" => Some(if is_pt {
+                (
+                    "Start / Ação — Espaço ou Enter (OUT)",
+                    "Alto (1) enquanto Espaço/Enter está premido; mapeado em MMIO 0xF005 e no bit 4 de 0xF000.",
+                )
+            } else {
+                (
+                    "Start / Action — Space or Enter (OUT)",
+                    "High (1) while Space/Enter is held; mapped to MMIO 0xF005 and bit 4 of 0xF000.",
+                )
+            }),
+            _ => None,
+        },
+        "FULL_KEYBOARD_COMPONENT" => match pin_name {
+            "RST" => Some(if is_pt {
+                (
+                    "Reset Geral do Teclado (IN)",
+                    "Ativo a Alto (1): limpa todo o estado de teclas e reinicia os registos MMIO 0xF000..0xF009.",
+                )
+            } else {
+                (
+                    "Master Keyboard Reset (IN)",
+                    "Active High (1): clears all key states and resets MMIO registers 0xF000..0xF009.",
+                )
+            }),
+            "CLR" => Some(if is_pt {
+                (
+                    "Limpar Última Tecla / Acknowledge (IN)",
+                    "Ativo a Alto (1): limpa o código ASCII memorizado em MMIO_KEY_LAST (0xF006).",
+                )
+            } else {
+                (
+                    "Clear Latched Key / Acknowledge (IN)",
+                    "Active High (1): clears the latched ASCII byte in MMIO_KEY_LAST (0xF006).",
+                )
+            }),
+            "ASCII_7" | "ASCII_6" | "ASCII_5" | "ASCII_4" | "ASCII_3" | "ASCII_2" | "ASCII_1"
+            | "ASCII_0" => Some(if is_pt {
+                (
+                    "Barramento de Saída ASCII 8-Bit (OUT)",
+                    "Bit do código ASCII da tecla ativa/memorizada (A-Z, 0-9, Espaço, Enter, Esc, Setas; MMIO 0xF006/0xF007).",
+                )
+            } else {
+                (
+                    "8-Bit ASCII Code Output Bus (OUT)",
+                    "Bit of the active/latched ASCII character code (A-Z, 0-9, Space, Enter, Esc, Arrows; MMIO 0xF006/0xF007).",
+                )
+            }),
+            "KEY_VALID" => Some(if is_pt {
+                (
+                    "Sinal Tecla Premida / Valid Strobe (OUT)",
+                    "Alto (1) enquanto qualquer tecla física ou tecla virtual no canvas está premida (bit 7 de 0xF000).",
+                )
+            } else {
+                (
+                    "Key Pressed / Valid Strobe (OUT)",
+                    "High (1) whenever any physical key or virtual canvas keycap is pressed (bit 7 of 0xF000).",
+                )
+            }),
+            "UP" => Some(if is_pt {
+                (
+                    "Direcional Cima — W / Seta ▲ (OUT)",
+                    "Alto (1) enquanto 'W' ou Seta Cima está premida (MMIO 0xF001 / 0xF003 / 0xF008).",
+                )
+            } else {
+                (
+                    "Directional Up — W / ▲ Arrow (OUT)",
+                    "High (1) while 'W' or Up Arrow is pressed (MMIO 0xF001 / 0xF003 / 0xF008).",
+                )
+            }),
+            "DOWN" => Some(if is_pt {
+                (
+                    "Direcional Baixo — S / Seta ▼ (OUT)",
+                    "Alto (1) enquanto 'S' ou Seta Baixo está premida (MMIO 0xF002 / 0xF004 / 0xF008).",
+                )
+            } else {
+                (
+                    "Directional Down — S / ▼ Arrow (OUT)",
+                    "High (1) while 'S' or Down Arrow is pressed (MMIO 0xF002 / 0xF004 / 0xF008).",
+                )
+            }),
+            "LEFT" => Some(if is_pt {
+                (
+                    "Direcional Esquerda — A / Seta ◄ (OUT)",
+                    "Alto (1) enquanto 'A' ou Seta Esquerda está premida (MMIO 0xF008 bits 2 e 6).",
+                )
+            } else {
+                (
+                    "Directional Left — A / ◄ Arrow (OUT)",
+                    "High (1) while 'A' or Left Arrow is pressed (MMIO 0xF008 bits 2 & 6).",
+                )
+            }),
+            "RIGHT" => Some(if is_pt {
+                (
+                    "Direcional Direita — D / Seta ► (OUT)",
+                    "Alto (1) enquanto 'D' ou Seta Direita está premida (MMIO 0xF008 bits 3 e 7).",
+                )
+            } else {
+                (
+                    "Directional Right — D / ► Arrow (OUT)",
+                    "High (1) while 'D' or Right Arrow is pressed (MMIO 0xF008 bits 3 & 7).",
+                )
+            }),
+            "ENTER" => Some(if is_pt {
+                (
+                    "Tecla Enter / Espaço (OUT)",
+                    "Alto (1) enquanto Enter (0x0D) ou Espaço (0x20) está premido (MMIO 0xF005 / 0xF009).",
+                )
+            } else {
+                (
+                    "Enter / Space Action Key (OUT)",
+                    "High (1) while Enter (0x0D) or Space (0x20) is pressed (MMIO 0xF005 / 0xF009).",
+                )
+            }),
+            _ => None,
+        },
+        _ => None,
     }
 }

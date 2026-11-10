@@ -268,6 +268,12 @@ User preferences are automatically preserved across application restarts in:
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
+### v1.1.1
+- **Added**: Top-bar **`DEMO`** menu dropdown right next to **`VIEW` (`VER`)** with 5 interactive demo circuits (*4-Bit Counter + Adder*, *RAM 16x4 + Decoder*, *Pong Arcade*, *QWERTY Keyboard + CPU Terminal*, and *Full 3-Page Showcase*), removing the demo items from the `FILE` menu.
+- **Added**: **Full QWERTY / ASCII Keyboard (`FULL_KEYBOARD_COMPONENT`)** peripheral with an interactive 5-row on-canvas keyboard (`A–Z`, `0–9`, `Shift`, `Space`, `Enter`, `Bksp`, `Esc`, and `▲/▼/◄/►` arrows), 8-bit `ASCII_7..0` output bus, `KEY_VALID` strobe, and expanded MMIO registers (`0xF006`–`0xF009`).
+- **Added**: Comprehensive localized pin descriptions (`describe_pin`) for all pins on `CPU_COMPONENT`, `DISPLAY_COMPONENT`, `KEYBOARD_COMPONENT`, and `FULL_KEYBOARD_COMPONENT` across canvas hover tooltips, package bezel labels, and a collapsible **Pinout & Signal Descriptions** table in the Inspector.
+- **Changed**: Toolbar buttons beyond **`📈 O-Scope`** (`🗐 Memory` and `🖥 CPU / ASM`) now appear dynamically only when the corresponding components exist on the canvas, and removed the standalone `🏓 PONG` toolbar button.
+
 ### v1.1.0
 - **Added**: Modular Multi-Architecture Programmable CPU (`RV32I` 32-bit, `LC-16` 16-bit, `MIN-8` 8-bit) with a unified 64 KB Memory Bus, Memory-Mapped I/O (MMIO), and an integrated Assembler supporting labels, `.org`, `.byte`, `.word`, `.equ`, and line-highlighted syntax errors.
 - **Added**: New hardware components in library `12 - CPU & Peripherals`: `CPU_COMPONENT` (1 kHz – 1 MHz internal clock or circuit pin clock), multiple configurable `DISPLAY_COMPONENT` VRAM monitors (custom VRAM base address, `64x32`/`128x64`/`64x64` resolutions, and Monochrome/Amber/Matrix Green/Game Boy palettes), and `KEYBOARD_COMPONENT` (capturing `W`/`S`, `Up`/`Down`, and `Space`/`Enter`).

@@ -156,6 +156,101 @@ pub fn hit_test_hex_keypad_button(
     }
 }
 
+/// Keycap layout for `KEYBOARD_COMPONENT`: `(label, key_code, local_pos, width_mult)`.
+pub const ARCADE_KEYBOARD_KEYS: &[(&str, u8, [f32; 2], f32)] = &[
+    ("W", b'W', [-2.2, 0.75], 1.0),
+    ("S", b'S', [-2.2, -0.95], 1.0),
+    ("▲", 0x11, [0.25, 0.75], 1.0),
+    ("▼", 0x12, [0.25, -0.95], 1.0),
+    ("SPC", b' ', [-0.95, -2.55], 2.2),
+];
+
+/// Full QWERTY + Numbers + Function + Arrow keycap layout for `FULL_KEYBOARD_COMPONENT`:
+/// `(label, key_code, local_pos, width_mult)`.
+pub const FULL_KEYBOARD_KEYS: &[(&str, u8, [f32; 2], f32)] = &[
+    // Row 1: Numbers + Backspace
+    ("1", b'1', [-7.2, 2.2], 1.0),
+    ("2", b'2', [-5.9, 2.2], 1.0),
+    ("3", b'3', [-4.6, 2.2], 1.0),
+    ("4", b'4', [-3.3, 2.2], 1.0),
+    ("5", b'5', [-2.0, 2.2], 1.0),
+    ("6", b'6', [-0.7, 2.2], 1.0),
+    ("7", b'7', [0.6, 2.2], 1.0),
+    ("8", b'8', [1.9, 2.2], 1.0),
+    ("9", b'9', [3.2, 2.2], 1.0),
+    ("0", b'0', [4.5, 2.2], 1.0),
+    ("BK", 0x08, [6.0, 2.2], 1.35),
+    // Row 2: QWERTYUIOP
+    ("Q", b'Q', [-7.0, 0.65], 1.0),
+    ("W", b'W', [-5.7, 0.65], 1.0),
+    ("E", b'E', [-4.4, 0.65], 1.0),
+    ("R", b'R', [-3.1, 0.65], 1.0),
+    ("T", b'T', [-1.8, 0.65], 1.0),
+    ("Y", b'Y', [-0.5, 0.65], 1.0),
+    ("U", b'U', [0.8, 0.65], 1.0),
+    ("I", b'I', [2.1, 0.65], 1.0),
+    ("O", b'O', [3.4, 0.65], 1.0),
+    ("P", b'P', [4.7, 0.65], 1.0),
+    // Row 3: ASDFGHJKL + Enter
+    ("A", b'A', [-6.8, -0.9], 1.0),
+    ("S", b'S', [-5.5, -0.9], 1.0),
+    ("D", b'D', [-4.2, -0.9], 1.0),
+    ("F", b'F', [-2.9, -0.9], 1.0),
+    ("G", b'G', [-1.6, -0.9], 1.0),
+    ("H", b'H', [-0.3, -0.9], 1.0),
+    ("J", b'J', [1.0, -0.9], 1.0),
+    ("K", b'K', [2.3, -0.9], 1.0),
+    ("L", b'L', [3.6, -0.9], 1.0),
+    ("ENT", 0x0D, [5.35, -0.9], 1.75),
+    // Row 4: ESC + ZXCVBNM + UP
+    ("ESC", 0x1B, [-6.85, -2.45], 1.35),
+    ("Z", b'Z', [-5.2, -2.45], 1.0),
+    ("X", b'X', [-3.9, -2.45], 1.0),
+    ("C", b'C', [-2.6, -2.45], 1.0),
+    ("V", b'V', [-1.3, -2.45], 1.0),
+    ("B", b'B', [0.0, -2.45], 1.0),
+    ("N", b'N', [1.3, -2.45], 1.0),
+    ("M", b'M', [2.6, -2.45], 1.0),
+    ("▲", 0x11, [4.4, -2.45], 1.15),
+    // Row 5: SPACE + LEFT / DOWN / RIGHT
+    ("SPACE", b' ', [-2.3, -4.05], 4.8),
+    ("◄", 0x13, [3.1, -4.05], 1.15),
+    ("▼", 0x12, [4.4, -4.05], 1.15),
+    ("►", 0x14, [5.7, -4.05], 1.15),
+];
+
+/// Hit-tests interactive keycaps on `KEYBOARD_COMPONENT` or `FULL_KEYBOARD_COMPONENT`.
+pub fn hit_test_keyboard_key(
+    canvas_rect: Rect,
+    page: &CircuitPage,
+    g: &GateInstance,
+    mp: Pos2,
+) -> Option<u8> {
+    let px_per_world = 1.0 / page.zoom_world_per_px.max(0.01);
+    if g.type_name == "KEYBOARD_COMPONENT" {
+        let key_w = (1.55 * px_per_world).clamp(12.0, 28.0);
+        let key_h = (1.25 * px_per_world).clamp(10.0, 22.0);
+        for &(_lbl, code, lpos, w_mult) in ARCADE_KEYBOARD_KEYS {
+            let kc = LogicCraftApp::world_to_screen(canvas_rect, page, g.pin_world_pos(lpos));
+            let kr = Rect::from_center_size(kc, Vec2::new(key_w * w_mult, key_h));
+            if kr.contains(mp) {
+                return Some(code);
+            }
+        }
+    } else if g.type_name == "FULL_KEYBOARD_COMPONENT" {
+        let key_w = (1.12 * px_per_world).clamp(8.0, 24.0);
+        let key_h = (1.22 * px_per_world).clamp(8.0, 22.0);
+        for &(_lbl, code, lpos, w_mult) in FULL_KEYBOARD_KEYS {
+            let kc = LogicCraftApp::world_to_screen(canvas_rect, page, g.pin_world_pos(lpos));
+            let kr = Rect::from_center_size(kc, Vec2::new(key_w * w_mult, key_h));
+            if kr.contains(mp) {
+                return Some(code);
+            }
+        }
+    }
+    None
+}
+
 pub fn fit_font_size(text: &str, max_width: f32, preferred_size: f32) -> f32 {
     let char_count = text.chars().count().max(1) as f32;
     let max_by_width = (max_width / (char_count * 0.64)).clamp(5.5, preferred_size);
@@ -186,7 +281,11 @@ pub fn draw_mini_gate_icon(
     let fg_col = match style {
         GateShapeStyle::RamRom { .. } | GateShapeStyle::CustomIc | GateShapeStyle::CpuProcessor => p.purple,
         GateShapeStyle::VramDisplay => p.green,
-        GateShapeStyle::FlipFlopD | GateShapeStyle::FlipFlopJK | GateShapeStyle::Register | GateShapeStyle::KeyboardInput => p.orange,
+        GateShapeStyle::FlipFlopD
+        | GateShapeStyle::FlipFlopJK
+        | GateShapeStyle::Register
+        | GateShapeStyle::KeyboardInput
+        | GateShapeStyle::FullKeyboard => p.orange,
         _ => p.cyan,
     };
     let fill_col = p.component_fill;
@@ -469,6 +568,7 @@ pub fn draw_mini_gate_icon(
                 GateShapeStyle::CpuProcessor => "CPU",
                 GateShapeStyle::VramDisplay => "VRAM",
                 GateShapeStyle::KeyboardInput => "KEYS",
+                GateShapeStyle::FullKeyboard => "ASCII",
                 _ => "IC",
             };
             painter.text(
@@ -500,13 +600,28 @@ pub fn short_pin_label(name: &str) -> String {
         "shift_left" => "SHL".into(),
         "up_down" => "U/D".into(),
         "load" => "LD".into(),
-        "clear" => "CLR".into(),
+        "clear" | "CLR" => "CLR".into(),
+        "RST" => "RST".into(),
         "set" => "SET".into(),
         "carry_in" => "Cin".into(),
         "carry_out" => "Cout".into(),
-        "write_enable" => "WE".into(),
-        "enable" | "ENABLE" | "ENABLE_0" => "EN".into(),
+        "write_enable" | "WE" => "WE".into(),
+        "enable" | "ENABLE" | "ENABLE_0" | "EN" => "EN".into(),
         "VALID" => "V".into(),
+        "KEY_VALID" => "KVAL".into(),
+        "VSYNC" => "VSY".into(),
+        "RW" => "R/W".into(),
+        "HALT" => "HLT".into(),
+        "P1_W" => "P1:W".into(),
+        "P1_S" => "P1:S".into(),
+        "P2_UP" => "P2:▲".into(),
+        "P2_DN" => "P2:▼".into(),
+        "START" => "STRT".into(),
+        "ENTER" => "ENT".into(),
+        "LEFT" => "◄L".into(),
+        "RIGHT" => "►R".into(),
+        "UP" => "▲U".into(),
+        "DOWN" => "▼D".into(),
         "Q_bar" | "OUTINV_0" => "Q'".into(),
         "in_A_greater_B" => ">in".into(),
         "in_A_equal_B" => "=in".into(),
@@ -517,10 +632,16 @@ pub fn short_pin_label(name: &str) -> String {
         other => {
             if let Some(rest) = other.strip_prefix("ADDRESS_") {
                 format!("A{rest}")
+            } else if let Some(rest) = other.strip_prefix("ADDR_") {
+                format!("A{rest}")
             } else if let Some(rest) = other.strip_prefix("DATA_IN_") {
                 format!("D{rest}")
             } else if let Some(rest) = other.strip_prefix("DATA_OUT_") {
                 format!("Q{rest}")
+            } else if let Some(rest) = other.strip_prefix("DATA_") {
+                format!("D{rest}")
+            } else if let Some(rest) = other.strip_prefix("ASCII_") {
+                format!("C{rest}")
             } else if let Some(rest) = other.strip_prefix("sum_") {
                 format!("S{rest}")
             } else if let Some(rest) = other.strip_prefix("IN_") {
@@ -1108,6 +1229,11 @@ pub fn draw_gate_on_canvas(
             let (res_w, res_h) = disp.resolution.dimensions();
             let header_h = (1.35 * px_per_world).clamp(12.0, 22.0);
             let pad = (0.55 * px_per_world).clamp(4.0, 10.0);
+            let side_pad = if px_per_world >= 7.0 {
+                (1.45 * px_per_world).clamp(14.0, 26.0)
+            } else {
+                pad
+            };
 
             // Header bar with VRAM Base Address, Resolution & Palette badge
             let hdr_r = Rect::from_min_max(
@@ -1129,48 +1255,75 @@ pub fn draw_gate_on_canvas(
                 p.green,
             );
 
+            // Draw monitor pin labels inside the left/right bezel (`CLK`, `WE`, `RST`, `EN` & `VSY`)
+            if px_per_world >= 7.0 {
+                let clipped = painter.with_clip_rect(box_r.shrink(1.5));
+                let pin_font = FontId::new((0.46 * px_per_world).clamp(5.8, 8.5), FontFamily::Monospace);
+                for pin in def.inputs.iter().chain(def.outputs.iter()) {
+                    let lbl = short_pin_label(&pin.name);
+                    if (pin.pos[0] + hw).abs() < 0.2 {
+                        let tp = to_screen([-hw + 0.18, pin.pos[1]]);
+                        clipped.text(tp, Align2::LEFT_CENTER, lbl, pin_font.clone(), p.text_secondary);
+                    } else if (pin.pos[0] - hw).abs() < 0.2 {
+                        let tp = to_screen([hw - 0.18, pin.pos[1]]);
+                        clipped.text(tp, Align2::RIGHT_CENTER, lbl, pin_font.clone(), p.text_secondary);
+                    }
+                }
+            }
+
             // Screen CRT/LCD Bezel
             let screen_r = Rect::from_min_max(
-                Pos2::new(box_r.left() + pad, box_r.top() + header_h + 2.0),
-                Pos2::new(box_r.right() - pad, box_r.bottom() - pad),
+                Pos2::new(box_r.left() + side_pad, box_r.top() + header_h + 2.0),
+                Pos2::new(box_r.right() - side_pad, box_r.bottom() - pad),
             );
             if screen_r.width() > 4.0 && screen_r.height() > 4.0 {
                 let bg_col = disp.palette.pixel_color(0);
                 painter.rect_filled(screen_r, 1.0, bg_col);
 
-                let pw = screen_r.width() / res_w as f32;
-                let ph = screen_r.height() / res_h as f32;
-                let base = disp.vram_base as u32;
+                let en_low = g.pin_states.get("EN").copied() == Some(LogicState::Zero);
+                if en_low {
+                    painter.with_clip_rect(screen_r).text(
+                        screen_r.center(),
+                        Align2::CENTER_CENTER,
+                        "BLANKING (EN=0)",
+                        FontId::new((0.65 * px_per_world).clamp(7.0, 11.0), FontFamily::Monospace),
+                        p.text_muted,
+                    );
+                } else {
+                    let pw = screen_r.width() / res_w as f32;
+                    let ph = screen_r.height() / res_h as f32;
+                    let base = disp.vram_base as u32;
 
-                // Horizontal run-length batched pixel rendering for maximum FPS
-                for py in 0..res_h {
-                    let row_addr = base.wrapping_add((py * res_w) as u32);
-                    let y0 = screen_r.top() + py as f32 * ph;
-                    let y1 = y0 + ph.max(1.0);
-                    let mut px = 0usize;
-                    while px < res_w {
-                        let val = cpu.bus.peek8(row_addr.wrapping_add(px as u32));
-                        if val == 0 {
-                            px += 1;
-                            continue;
-                        }
-                        let col = disp.palette.pixel_color(val);
-                        let start_x = px;
-                        px += 1;
+                    // Horizontal run-length batched pixel rendering for maximum FPS
+                    for py in 0..res_h {
+                        let row_addr = base.wrapping_add((py * res_w) as u32);
+                        let y0 = screen_r.top() + py as f32 * ph;
+                        let y1 = y0 + ph.max(1.0);
+                        let mut px = 0usize;
                         while px < res_w {
-                            let next_val = cpu.bus.peek8(row_addr.wrapping_add(px as u32));
-                            if next_val == 0 || disp.palette.pixel_color(next_val) != col {
-                                break;
+                            let val = cpu.bus.peek8(row_addr.wrapping_add(px as u32));
+                            if val == 0 {
+                                px += 1;
+                                continue;
                             }
+                            let col = disp.palette.pixel_color(val);
+                            let start_x = px;
                             px += 1;
+                            while px < res_w {
+                                let next_val = cpu.bus.peek8(row_addr.wrapping_add(px as u32));
+                                if next_val == 0 || disp.palette.pixel_color(next_val) != col {
+                                    break;
+                                }
+                                px += 1;
+                            }
+                            let x0 = screen_r.left() + start_x as f32 * pw;
+                            let x1 = screen_r.left() + px as f32 * pw;
+                            painter.rect_filled(
+                                Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1)),
+                                0.0,
+                                col,
+                            );
                         }
-                        let x0 = screen_r.left() + start_x as f32 * pw;
-                        let x1 = screen_r.left() + px as f32 * pw;
-                        painter.rect_filled(
-                            Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1)),
-                            0.0,
-                            col,
-                        );
                     }
                 }
                 painter.rect_stroke(screen_r, 1.0, Stroke::new(1.1, p.border_primary));
@@ -1233,7 +1386,7 @@ pub fn draw_gate_on_canvas(
                 run_col,
             );
 
-            if px_per_world >= 7.5 {
+            if px_per_world >= 7.0 {
                 let pin_font = FontId::new((0.50 * px_per_world).clamp(6.0, 8.8), FontFamily::Monospace);
                 for pin in def.inputs.iter().chain(def.outputs.iter()) {
                     let lbl = short_pin_label(&pin.name);
@@ -1264,18 +1417,18 @@ pub fn draw_gate_on_canvas(
             );
 
             // Render 5 interactive keycaps: W, S (P1), UP, DN (P2), and SPACE (START)
-            let keys = [
-                ("W", ks.p1_up, [-2.6, 0.7]),
-                ("S", ks.p1_down, [-2.6, -1.0]),
-                ("▲", ks.p2_up, [0.3, 0.7]),
-                ("▼", ks.p2_down, [0.3, -1.0]),
-                ("SPC", ks.start, [-1.15, -2.55]),
-            ];
-            let key_w = (1.6 * px_per_world).clamp(12.0, 28.0);
+            let key_w = (1.55 * px_per_world).clamp(12.0, 28.0);
             let key_h = (1.25 * px_per_world).clamp(10.0, 22.0);
-            for (lbl, active, lpos) in keys {
+            for &(lbl, code, lpos, w_mult) in ARCADE_KEYBOARD_KEYS {
+                let active = match code {
+                    b'W' => ks.p1_up,
+                    b'S' => ks.p1_down,
+                    0x11 => ks.p2_up,
+                    0x12 => ks.p2_down,
+                    b' ' => ks.start,
+                    _ => false,
+                };
                 let kc = to_screen(lpos);
-                let w_mult = if lbl == "SPC" { 2.2 } else { 1.0 };
                 let kr = Rect::from_center_size(kc, Vec2::new(key_w * w_mult, key_h));
                 let bg = if active { p.green } else { p.bg_elevated };
                 let fg = if active {
@@ -1292,6 +1445,123 @@ pub fn draw_gate_on_canvas(
                     FontId::new((key_h * 0.56).clamp(6.5, 11.0), FontFamily::Monospace),
                     fg,
                 );
+            }
+
+            if px_per_world >= 7.0 {
+                let pin_font = FontId::new((0.46 * px_per_world).clamp(5.8, 8.4), FontFamily::Monospace);
+                for pin in def.inputs.iter().chain(def.outputs.iter()) {
+                    let lbl = short_pin_label(&pin.name);
+                    if (pin.pos[0] + hw).abs() < 0.2 {
+                        let tp = to_screen([-hw + 0.2, pin.pos[1]]);
+                        clipped.text(tp, Align2::LEFT_CENTER, lbl, pin_font.clone(), p.text_secondary);
+                    } else if (pin.pos[0] - hw).abs() < 0.2 {
+                        let tp = to_screen([hw - 0.2, pin.pos[1]]);
+                        clipped.text(tp, Align2::RIGHT_CENTER, lbl, pin_font.clone(), p.text_secondary);
+                    }
+                }
+            }
+        }
+        GateShapeStyle::FullKeyboard => {
+            let box_r = Rect::from_two_pos(to_screen([-hw, hh]), to_screen([hw, -hh]));
+            painter.rect_filled(box_r, 2.0, body_fill);
+            painter.rect_stroke(box_r, 2.0, stroke);
+
+            let ks = cpu.keyboard.effective_state();
+            let clipped = painter.with_clip_rect(box_r.shrink(2.0));
+
+            let disp_code = if ks.ascii_code != 0 {
+                ks.ascii_code
+            } else {
+                ks.last_key
+            };
+            let ch_disp = if (0x20..=0x7E).contains(&disp_code) {
+                format!("'{}'", disp_code as char)
+            } else {
+                match disp_code {
+                    0x00 => "IDLE".into(),
+                    0x08 => "BKSP".into(),
+                    0x0D => "ENTER".into(),
+                    0x1B => "ESC".into(),
+                    0x11 => "UP ▲".into(),
+                    0x12 => "DN ▼".into(),
+                    0x13 => "LT ◄".into(),
+                    0x14 => "RT ►".into(),
+                    _ => format!("0x{disp_code:02X}"),
+                }
+            };
+            let hdr_txt = format!(
+                "QWERTY / ASCII KEYBOARD [MMIO 0xF000 // CODE: 0x{:02X} ({})]",
+                disp_code, ch_disp
+            );
+            let hdr_fsize = fit_font_size(
+                &hdr_txt,
+                box_r.width() - 18.0,
+                (0.65 * px_per_world).clamp(6.8, 10.5),
+            );
+            clipped.text(
+                Pos2::new(box_r.center().x - 0.6 * px_per_world, box_r.top() + hdr_fsize + 3.0),
+                Align2::CENTER_CENTER,
+                hdr_txt,
+                FontId::new(hdr_fsize, FontFamily::Monospace),
+                if ks.key_valid { p.green } else { p.orange },
+            );
+
+            let key_w = (1.12 * px_per_world).clamp(8.0, 24.0);
+            let key_h = (1.22 * px_per_world).clamp(8.0, 22.0);
+            for &(lbl, code, lpos, w_mult) in FULL_KEYBOARD_KEYS {
+                let active = ks.ascii_code == code
+                    || (code == b'W' && ks.p1_up)
+                    || (code == b'S' && ks.p1_down)
+                    || (code == b'A' && ks.p1_left)
+                    || (code == b'D' && ks.p1_right)
+                    || (code == 0x11 && ks.p2_up)
+                    || (code == 0x12 && ks.p2_down)
+                    || (code == 0x13 && ks.p2_left)
+                    || (code == 0x14 && ks.p2_right)
+                    || (code == b' ' && ks.space)
+                    || (code == 0x0D && ks.enter)
+                    || (code == 0x08 && ks.backspace)
+                    || (code == 0x1B && ks.escape);
+                let is_last = !active && ks.last_key == code && code != 0;
+                let kc = to_screen(lpos);
+                let kr = Rect::from_center_size(kc, Vec2::new(key_w * w_mult, key_h));
+                let bg = if active {
+                    p.green
+                } else if is_last {
+                    p.cyan.linear_multiply(0.32)
+                } else {
+                    p.bg_elevated
+                };
+                let fg = if active {
+                    Color32::from_rgb(10, 14, 18)
+                } else if is_last {
+                    p.cyan
+                } else {
+                    p.text_primary
+                };
+                clipped.rect_filled(kr, 2.0, bg);
+                clipped.rect_stroke(kr, 2.0, Stroke::new(0.9, p.border_primary));
+                clipped.text(
+                    kr.center(),
+                    Align2::CENTER_CENTER,
+                    lbl,
+                    FontId::new((key_h * 0.50).clamp(5.8, 10.0), FontFamily::Monospace),
+                    fg,
+                );
+            }
+
+            if px_per_world >= 7.0 {
+                let pin_font = FontId::new((0.44 * px_per_world).clamp(5.5, 8.2), FontFamily::Monospace);
+                for pin in def.inputs.iter().chain(def.outputs.iter()) {
+                    let lbl = short_pin_label(&pin.name);
+                    if (pin.pos[0] + hw).abs() < 0.2 {
+                        let tp = to_screen([-hw + 0.2, pin.pos[1]]);
+                        clipped.text(tp, Align2::LEFT_CENTER, lbl, pin_font.clone(), p.text_secondary);
+                    } else if (pin.pos[0] - hw).abs() < 0.2 {
+                        let tp = to_screen([hw - 0.2, pin.pos[1]]);
+                        clipped.text(tp, Align2::RIGHT_CENTER, lbl, pin_font.clone(), p.text_secondary);
+                    }
+                }
             }
         }
         _ => {

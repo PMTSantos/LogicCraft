@@ -731,25 +731,110 @@ impl LogicCraftApp {
             .get(self.sim.current_page)
             .map_or(false, |pg| {
                 pg.gates.iter().any(|g| {
-                    g.type_name == "KEYBOARD_COMPONENT" || g.type_name == "CPU_COMPONENT"
+                    g.type_name == "KEYBOARD_COMPONENT"
+                        || g.type_name == "FULL_KEYBOARD_COMPONENT"
+                        || g.type_name == "CPU_COMPONENT"
                 })
+            });
+        let page_has_full_keyboard = self
+            .sim
+            .pages
+            .get(self.sim.current_page)
+            .map_or(false, |pg| {
+                pg.gates.iter().any(|g| g.type_name == "FULL_KEYBOARD_COMPONENT")
             });
         let mut do_copy = false;
         let mut do_paste = false;
         ctx.input(|i| {
-            // Capture real-time arcade keyboard state (W/S, Up/Down, Space/Enter) for MMIO & KeyboardInputComponent
-            if !typing_in_text_edit {
-                self.sim.cpu.keyboard.state.p1_up = i.key_down(Key::W);
-                self.sim.cpu.keyboard.state.p1_down = i.key_down(Key::S);
-                self.sim.cpu.keyboard.state.p2_up = i.key_down(Key::ArrowUp);
-                self.sim.cpu.keyboard.state.p2_down = i.key_down(Key::ArrowDown);
-                self.sim.cpu.keyboard.state.start =
-                    i.key_down(Key::Space) || i.key_down(Key::Enter);
+            let ctrl = i.modifiers.ctrl || i.modifiers.command;
+            // Capture real-time arcade & full QWERTY/ASCII keyboard state for MMIO & Keyboard components
+            if !typing_in_text_edit && !ctrl {
+                let mut ks = self.sim.cpu.keyboard.state;
+                ks.p1_up = i.key_down(Key::W);
+                ks.p1_down = i.key_down(Key::S);
+                ks.p1_left = i.key_down(Key::A);
+                ks.p1_right = i.key_down(Key::D);
+                ks.p2_up = i.key_down(Key::ArrowUp);
+                ks.p2_down = i.key_down(Key::ArrowDown);
+                ks.p2_left = i.key_down(Key::ArrowLeft);
+                ks.p2_right = i.key_down(Key::ArrowRight);
+                ks.space = i.key_down(Key::Space);
+                ks.enter = i.key_down(Key::Enter);
+                ks.start = ks.space || ks.enter;
+                ks.backspace = i.key_down(Key::Backspace);
+                ks.escape = i.key_down(Key::Escape);
+                ks.shift = i.modifiers.shift;
+
+                let key_map: &[(Key, u8)] = &[
+                    (Key::A, b'A'),
+                    (Key::B, b'B'),
+                    (Key::C, b'C'),
+                    (Key::D, b'D'),
+                    (Key::E, b'E'),
+                    (Key::F, b'F'),
+                    (Key::G, b'G'),
+                    (Key::H, b'H'),
+                    (Key::I, b'I'),
+                    (Key::J, b'J'),
+                    (Key::K, b'K'),
+                    (Key::L, b'L'),
+                    (Key::M, b'M'),
+                    (Key::N, b'N'),
+                    (Key::O, b'O'),
+                    (Key::P, b'P'),
+                    (Key::Q, b'Q'),
+                    (Key::R, b'R'),
+                    (Key::S, b'S'),
+                    (Key::T, b'T'),
+                    (Key::U, b'U'),
+                    (Key::V, b'V'),
+                    (Key::W, b'W'),
+                    (Key::X, b'X'),
+                    (Key::Y, b'Y'),
+                    (Key::Z, b'Z'),
+                    (Key::Num0, b'0'),
+                    (Key::Num1, b'1'),
+                    (Key::Num2, b'2'),
+                    (Key::Num3, b'3'),
+                    (Key::Num4, b'4'),
+                    (Key::Num5, b'5'),
+                    (Key::Num6, b'6'),
+                    (Key::Num7, b'7'),
+                    (Key::Num8, b'8'),
+                    (Key::Num9, b'9'),
+                    (Key::Space, b' '),
+                    (Key::Enter, 0x0D),
+                    (Key::Backspace, 0x08),
+                    (Key::Escape, 0x1B),
+                    (Key::ArrowUp, 0x11),
+                    (Key::ArrowDown, 0x12),
+                    (Key::ArrowLeft, 0x13),
+                    (Key::ArrowRight, 0x14),
+                ];
+                let mut cur_ascii = 0u8;
+                for &(k, code) in key_map {
+                    if i.key_down(k) {
+                        cur_ascii = code;
+                        ks.last_key = code;
+                        break;
+                    }
+                }
+                ks.ascii_code = cur_ascii;
+                ks.key_valid = cur_ascii != 0
+                    || ks.p1_up
+                    || ks.p1_down
+                    || ks.p2_up
+                    || ks.p2_down
+                    || ks.start;
+                self.sim.cpu.keyboard.state = ks;
             } else {
-                self.sim.cpu.keyboard.state = crate::cpu::bus::KeyboardState::default();
+                let last = self.sim.cpu.keyboard.state.last_key;
+                self.sim.cpu.keyboard.state = crate::cpu::bus::KeyboardState {
+                    last_key: last,
+                    ..Default::default()
+                };
             }
 
-            let ctrl = i.modifiers.ctrl || i.modifiers.command;
             let copy_ev = (ctrl && i.key_pressed(Key::C))
                 || i.events.iter().any(|ev| matches!(ev, egui::Event::Copy));
             let paste_ev = (ctrl && i.key_pressed(Key::V))
@@ -781,9 +866,11 @@ impl LogicCraftApp {
                     self.show_cpu_studio = !self.show_cpu_studio;
                 } else if ctrl && i.key_pressed(Key::T) {
                     self.add_new_tab();
-                } else if i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace) {
+                } else if i.key_pressed(Key::Delete)
+                    || (i.key_pressed(Key::Backspace) && !page_has_full_keyboard)
+                {
                     self.delete_selected();
-                } else if i.key_pressed(Key::R) {
+                } else if i.key_pressed(Key::R) && !page_has_full_keyboard {
                     self.rotate_selected(90.0);
                 } else if i.key_pressed(Key::Escape) {
                     self.placing_gate_type = None;

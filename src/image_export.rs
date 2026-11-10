@@ -626,6 +626,7 @@ pub fn render_canvas_image(
                     GateShapeStyle::CpuProcessor => "CPU",
                     GateShapeStyle::VramDisplay => "VRAM DISPLAY",
                     GateShapeStyle::KeyboardInput => "KEYBOARD",
+                    GateShapeStyle::FullKeyboard => "ASCII KEYBOARD",
                     GateShapeStyle::CustomIc => g
                         .gparams
                         .get("CHIP_LABEL")

@@ -64,30 +64,6 @@ impl LogicCraftApp {
                             self.status_message = "Created new blank circuit.".to_string();
                             ui.close_menu();
                         }
-                        if ui.button(tr.file_load_demo).clicked() {
-                            self.save_undo_snapshot();
-                            self.sim.populate_demo_circuit(&self.lib);
-                            self.status_message =
-                                "Loaded Counter, Full Adder & Connector Demo Circuit.".to_string();
-                            ui.close_menu();
-                        }
-                        if ui.button("🏓 Load Pong Arcade Demo (CPU + VRAM + Keyboard)").clicked() {
-                            self.save_undo_snapshot();
-                            self.sim.populate_demo_circuit(&self.lib);
-                            if let Some(pong_idx) = self
-                                .sim
-                                .pages
-                                .iter()
-                                .position(|pg| pg.name.contains("Pong"))
-                            {
-                                self.sim.current_page = pong_idx;
-                            }
-                            self.sim.cpu.load_pong_demo();
-                            self.sim.cpu.running = true;
-                            self.status_message =
-                                "Loaded Pong Arcade (2 Players: W/S & Up/Down, Space to Start)!".to_string();
-                            ui.close_menu();
-                        }
                         ui.separator();
                         if ui.button(tr.file_open).clicked() {
                             ui.close_menu();
@@ -236,6 +212,93 @@ impl LogicCraftApp {
                                 self.save_settings();
                             }
                         });
+                    });
+
+                    // Dedicated DEMO Dropdown Menu next to VIEW
+                    let is_pt = self.locale == Locale::Pt;
+                    ui.menu_button(tr.menu_demo.to_uppercase(), |ui| {
+                        let lbl_suite = if is_pt {
+                            "⚡ Suite Completa Multi-Página (Contador + RAM + Pong Arcade)"
+                        } else {
+                            "⚡ Full Multi-Page Demo Suite (Counter + RAM + Pong Arcade)"
+                        };
+                        if ui.button(lbl_suite).clicked() {
+                            self.save_undo_snapshot();
+                            self.sim.populate_demo_circuit(&self.lib);
+                            self.sim.current_page = 0;
+                            self.status_message = if is_pt {
+                                "Suite de Demonstração Completa carregada (3 páginas).".to_string()
+                            } else {
+                                "Loaded Full Multi-Page Demo Suite (3 pages).".to_string()
+                            };
+                            ui.close_menu();
+                        }
+                        ui.separator();
+
+                        let lbl_counter = if is_pt {
+                            "🔢 Contador Síncrono 4-Bit, Teclado Hex e Somador Completo"
+                        } else {
+                            "🔢 4-Bit Synchronous Counter, Hex Keypad & Full Adder"
+                        };
+                        if ui.button(lbl_counter).clicked() {
+                            self.save_undo_snapshot();
+                            self.sim.populate_counter_adder_demo(&self.lib);
+                            self.status_message = if is_pt {
+                                "Demo carregada: Contador Síncrono 4-Bit e Somador Completo.".to_string()
+                            } else {
+                                "Loaded 4-Bit Synchronous Counter & Full Adder Demo.".to_string()
+                            };
+                            ui.close_menu();
+                        }
+
+                        let lbl_ram = if is_pt {
+                            "🗐 Memória RAM 4x4 e Descodificador Hexadecimal"
+                        } else {
+                            "🗐 4x4 RAM Memory & Hex Address Decoder"
+                        };
+                        if ui.button(lbl_ram).clicked() {
+                            self.save_undo_snapshot();
+                            self.sim.populate_ram_decoder_demo(&self.lib);
+                            self.status_message = if is_pt {
+                                "Demo carregada: Memória RAM 4x4 e Descodificador Hexadecimal.".to_string()
+                            } else {
+                                "Loaded 4x4 RAM Memory & Hex Decoder Demo.".to_string()
+                            };
+                            ui.close_menu();
+                        }
+                        ui.separator();
+
+                        let lbl_pong = if is_pt {
+                            "🏓 Pong Arcade 2 Jogadores (CPU + Monitores VRAM MMIO + Teclado)"
+                        } else {
+                            "🏓 2-Player Pong Arcade (CPU + Dual MMIO VRAM + Keyboard)"
+                        };
+                        if ui.button(lbl_pong).clicked() {
+                            self.save_undo_snapshot();
+                            self.sim.populate_pong_demo_standalone(&self.lib);
+                            self.status_message = if is_pt {
+                                "Pong Arcade carregado — J1: W/S | J2: Cima/Baixo | Espaço: Iniciar!".to_string()
+                            } else {
+                                "Loaded Pong Arcade (2 Players: W/S & Up/Down, Space to Start)!".to_string()
+                            };
+                            ui.close_menu();
+                        }
+
+                        let lbl_kb = if is_pt {
+                            "⌨ Teclado Completo QWERTY / ASCII + Display 8-Bit + CPU & VRAM"
+                        } else {
+                            "⌨ Full QWERTY / ASCII Keyboard + 8-Bit Display + CPU & VRAM"
+                        };
+                        if ui.button(lbl_kb).clicked() {
+                            self.save_undo_snapshot();
+                            self.sim.populate_keyboard_terminal_demo(&self.lib);
+                            self.status_message = if is_pt {
+                                "Demo Teclado Completo QWERTY / ASCII carregada!".to_string()
+                            } else {
+                                "Loaded Full QWERTY / ASCII Keyboard + CPU Demo!".to_string()
+                            };
+                            ui.close_menu();
+                        }
                     });
 
                     // Dedicated Language / Locale Menu
@@ -480,47 +543,46 @@ impl LogicCraftApp {
                             self.show_oscope = !self.show_oscope;
                             self.save_settings();
                         }
-                        if crate::theme::tool_button(ui, tr.tb_memory, self.show_memory_editor, p.purple)
+
+                        // Buttons beyond O-Scope only appear if a component that uses them exists on the canvas
+                        let has_memory = self
+                            .sim
+                            .pages
+                            .iter()
+                            .any(|pg| pg.gates.iter().any(|g| g.is_memory_device()));
+                        let has_cpu = self
+                            .sim
+                            .pages
+                            .iter()
+                            .any(|pg| pg.gates.iter().any(|g| g.type_name == "CPU_COMPONENT"));
+
+                        if has_memory {
+                            if crate::theme::tool_button(
+                                ui,
+                                tr.tb_memory,
+                                self.show_memory_editor,
+                                p.purple,
+                            )
                             .on_hover_text(tr.view_memory)
                             .clicked()
-                        {
-                            self.show_memory_editor = !self.show_memory_editor;
-                        }
-                        if crate::theme::tool_button(
-                            ui,
-                            "🖥 CPU / ASM",
-                            self.show_cpu_studio,
-                            p.green,
-                        )
-                        .on_hover_text("Open Programmable CPU & Assembly Debugger Studio (Ctrl+M)")
-                        .clicked()
-                        {
-                            self.show_cpu_studio = !self.show_cpu_studio;
-                        }
-                        if crate::theme::tool_button(ui, "🏓 PONG", false, p.cyan)
-                            .on_hover_text("Jump to 2-Player Pong Arcade Page & Run CPU")
-                            .clicked()
-                        {
-                            if let Some(pong_idx) = self
-                                .sim
-                                .pages
-                                .iter()
-                                .position(|pg| pg.name.contains("Pong"))
                             {
-                                self.sim.current_page = pong_idx;
-                            } else {
-                                self.save_undo_snapshot();
-                                let new_idx = self.sim.pages.len();
-                                self.sim
-                                    .pages
-                                    .push(CircuitPage::new("Pong Arcade (CPU + MMIO)"));
-                                self.sim.populate_pong_page(&self.lib, new_idx);
-                                self.sim.current_page = new_idx;
+                                self.show_memory_editor = !self.show_memory_editor;
                             }
-                            self.sim.cpu.running = true;
-                            self.status_message =
-                                "Pong Arcade Ready — Player 1: W / S | Player 2: Up / Down | Space: Start"
-                                    .to_string();
+                        }
+                        if has_cpu {
+                            if crate::theme::tool_button(
+                                ui,
+                                "🖥 CPU / ASM",
+                                self.show_cpu_studio,
+                                p.green,
+                            )
+                            .on_hover_text(
+                                "Open Programmable CPU & Assembly Debugger Studio (Ctrl+M)",
+                            )
+                            .clicked()
+                            {
+                                self.show_cpu_studio = !self.show_cpu_studio;
+                            }
                         }
                     });
             });
@@ -1604,7 +1666,7 @@ impl LogicCraftApp {
             // Inspector info for Arcade Keyboard (`KEYBOARD_COMPONENT`)
             if g_snap.type_name == "KEYBOARD_COMPONENT" {
                 ui.separator();
-                let ks = &self.sim.cpu.keyboard.state;
+                let ks = self.sim.cpu.keyboard.effective_state();
                 ui.label(
                     RichText::new("⌨ MMIO KEYBOARD INPUT (0xF000)")
                         .font(FontId::new(10.5, FontFamily::Monospace))
@@ -1623,6 +1685,145 @@ impl LogicCraftApp {
                     .font(FontId::new(10.0, FontFamily::Monospace))
                     .color(p.text_primary),
                 );
+            }
+
+            // Inspector controls for Full QWERTY / ASCII Keyboard (`FULL_KEYBOARD_COMPONENT`)
+            if g_snap.type_name == "FULL_KEYBOARD_COMPONENT" {
+                ui.separator();
+                let ks = self.sim.cpu.keyboard.effective_state();
+                let out_mode = g_snap
+                    .lparams
+                    .get("OUTPUT_MODE")
+                    .map(|s| s.as_str())
+                    .unwrap_or("LATCHED");
+                let is_latched = !out_mode.eq_ignore_ascii_case("LIVE");
+                ui.label(
+                    RichText::new("⌨ FULL QWERTY / ASCII KEYBOARD (MMIO 0xF000..0xF009)")
+                        .font(FontId::new(10.5, FontFamily::Monospace))
+                        .strong()
+                        .color(p.orange),
+                );
+                let code = if ks.ascii_code != 0 {
+                    ks.ascii_code
+                } else {
+                    ks.last_key
+                };
+                let ch_str = if (0x20..=0x7E).contains(&code) {
+                    format!("'{}'", code as char)
+                } else {
+                    format!("0x{code:02X}")
+                };
+                ui.label(
+                    RichText::new(format!(
+                        "ASCII: 0x{:02X} ({}) | VALID: {} | DIR: 0x{:02X}",
+                        code,
+                        ch_str,
+                        u8::from(ks.key_valid),
+                        ks.to_dir_mask()
+                    ))
+                    .font(FontId::new(10.0, FontFamily::Monospace))
+                    .color(p.cyan),
+                );
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new("ASCII BUS:")
+                            .font(FontId::new(10.0, FontFamily::Monospace))
+                            .color(p.text_secondary),
+                    );
+                    if crate::theme::tool_button(ui, "LATCHED (LAST KEY)", is_latched, p.cyan)
+                        .on_hover_text("Hold the last pressed ASCII key on ASCII_0..7 until next key or CLR")
+                        .clicked()
+                    {
+                        updated_lparam = Some(("OUTPUT_MODE", "LATCHED".to_string()));
+                    }
+                    if crate::theme::tool_button(ui, "LIVE (WHILE HELD)", !is_latched, p.green)
+                        .on_hover_text("Output ASCII_0..7 only while a key is actively held down")
+                        .clicked()
+                    {
+                        updated_lparam = Some(("OUTPUT_MODE", "LIVE".to_string()));
+                    }
+                    if crate::theme::tool_button(ui, "CLR", false, p.red)
+                        .on_hover_text("Clear latched ASCII key (MMIO 0xF006)")
+                        .clicked()
+                    {
+                        self.sim.cpu.keyboard.state.last_key = 0;
+                        self.sim.cpu.keyboard.canvas_override.last_key = 0;
+                        self.sim.cpu.bus.keys.last_key = 0;
+                        self.sim.cpu.bus.data[crate::cpu::bus::MMIO_KEY_LAST as usize] = 0;
+                    }
+                });
+            }
+
+            // Detailed Pinout & Signal Reference for CPU, Display & Keyboard Peripherals
+            if matches!(
+                g_snap.type_name.as_str(),
+                "CPU_COMPONENT"
+                    | "DISPLAY_COMPONENT"
+                    | "KEYBOARD_COMPONENT"
+                    | "FULL_KEYBOARD_COMPONENT"
+            ) {
+                if let Some(def) = self.lib.get(&g_snap.type_name).cloned() {
+                    ui.separator();
+                    let hdr_lbl = if self.locale == Locale::Pt {
+                        "📌 DESCRIÇÃO DE PINOS (PINOUT)"
+                    } else {
+                        "📌 PINOUT & SIGNAL DESCRIPTIONS"
+                    };
+                    egui::CollapsingHeader::new(
+                        RichText::new(hdr_lbl)
+                            .font(FontId::new(10.2, FontFamily::Monospace))
+                            .strong()
+                            .color(p.cyan),
+                    )
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_source("inspector_pinout_scroll")
+                            .max_height(135.0)
+                            .show(ui, |ui| {
+                                for pin in def.inputs.iter().chain(def.outputs.iter()) {
+                                    let st = g_snap
+                                        .pin_states
+                                        .get(&pin.name)
+                                        .copied()
+                                        .unwrap_or(LogicState::HiZ);
+                                    let dir_tag = if pin.is_output { "OUT" } else { "IN " };
+                                    if let Some((role_title, detail_desc)) =
+                                        crate::library::describe_pin(
+                                            &g_snap.type_name,
+                                            &pin.name,
+                                            self.locale,
+                                        )
+                                    {
+                                        ui.horizontal_wrapped(|ui| {
+                                            ui.colored_label(
+                                                st.wire_color(self.dark_mode),
+                                                RichText::new(format!(
+                                                    "[{}] {:<9} ({})",
+                                                    dir_tag,
+                                                    pin.name,
+                                                    st.label()
+                                                ))
+                                                .font(FontId::new(9.8, FontFamily::Monospace))
+                                                .strong(),
+                                            );
+                                            ui.label(
+                                                RichText::new(format!("— {role_title}"))
+                                                    .font(FontId::new(9.5, FontFamily::Monospace))
+                                                    .color(p.text_primary),
+                                            );
+                                        });
+                                        ui.label(
+                                            RichText::new(format!("   {detail_desc}"))
+                                                .font(FontId::new(9.0, FontFamily::Monospace))
+                                                .color(p.text_muted),
+                                        );
+                                        ui.add_space(2.0);
+                                    }
+                                }
+                            });
+                    });
+                }
             }
 
             if let Some((k, v)) = updated_lparam {

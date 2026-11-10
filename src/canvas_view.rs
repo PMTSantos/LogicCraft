@@ -13,7 +13,7 @@ use eframe::egui::{
 };
 
 use crate::canvas_renderer::{
-    dist_to_segment, draw_gate_on_canvas, hit_test_hex_keypad_button,
+    dist_to_segment, draw_gate_on_canvas, hit_test_hex_keypad_button, hit_test_keyboard_key,
 };
 use crate::kmap::{draw_kmap_function_on_canvas, draw_kmap_on_canvas};
 use crate::mechanics::{
@@ -458,11 +458,16 @@ impl LogicCraftApp {
 
             // Draw Gates & Interactive Pins
             let mut clicked_pin: Option<PinRef> = None;
-            let mut hovered_pin_info: Option<(PinRef, Pos2, LogicState)> = None;
+            let mut hovered_pin_info: Option<(PinRef, String, Pos2, LogicState)> = None;
             let mut clicked_gate_id: Option<u32> = None;
             let mut toggled_gate_action: Option<(u32, u16)> = None;
+            let mut clicked_virtual_key: Option<u8> = None;
             let mut group_sel_rect: Option<Rect> = None;
             let mut selected_gate_ids: Vec<u32> = Vec::new();
+
+            if !resp.is_pointer_button_down_on() {
+                self.sim.cpu.keyboard.release_virtual_keys();
+            }
 
             {
                 let page = &self.sim.pages[page_idx];
@@ -525,6 +530,7 @@ impl LogicCraftApp {
                                         gate_id: g.id,
                                         pin_name: pin.name.clone(),
                                     },
+                                    g.type_name.clone(),
                                     ps,
                                     st,
                                 ));
@@ -538,7 +544,21 @@ impl LogicCraftApp {
                         }
                     }
 
-                    // Check gate body click / interactive toggle / 4x4 hex keypad button click
+                    // Check gate body click / interactive toggle / 4x4 hex keypad / virtual keyboard keycap click
+                    if resp.clicked() || resp.is_pointer_button_down_on() {
+                        if let Some(mp) = pointer_pos {
+                            if gate_rect.contains(mp)
+                                && hovered_pin_info.is_none()
+                                && (g.type_name == "KEYBOARD_COMPONENT"
+                                    || g.type_name == "FULL_KEYBOARD_COMPONENT")
+                            {
+                                if let Some(kcode) = hit_test_keyboard_key(canvas_rect, page, g, mp)
+                                {
+                                    clicked_virtual_key = Some(kcode);
+                                }
+                            }
+                        }
+                    }
                     if resp.clicked() {
                         if let Some(mp) = pointer_pos {
                             if gate_rect.contains(mp) && hovered_pin_info.is_none() {
@@ -565,11 +585,16 @@ impl LogicCraftApp {
                         let hit_drag_gate = press_pos
                             .map_or(false, |pp| gate_rect.expand(2.0).contains(pp))
                             || pointer_pos.map_or(false, |mp| gate_rect.contains(mp));
-                        if hit_drag_gate {
+                        if hit_drag_gate && clicked_virtual_key.is_none() {
                             clicked_gate_id = Some(g.id);
                         }
                     }
                 }
+            }
+
+            if let Some(kcode) = clicked_virtual_key {
+                self.sim.cpu.keyboard.press_virtual_key(kcode);
+                self.sim.step(&self.lib);
             }
 
             // When multiple components are selected, draw a group bounding box and allow dragging anywhere inside the group
@@ -679,23 +704,56 @@ impl LogicCraftApp {
             }
 
             // Highlight hovered pin & active wiring preview line
-            if let Some((ref pref, ps, st)) = hovered_pin_info {
+            if let Some((ref pref, ref gtype, ps, st)) = hovered_pin_info {
                 let pin_box = Rect::from_center_size(ps, Vec2::splat(12.0));
                 painter.rect_stroke(pin_box, 0.0, Stroke::new(1.8_f32, p.cyan));
-                let badge_txt = format!(" {} : {} ", pref.pin_name, st.label());
-                let badge_rect = Rect::from_center_size(
-                    Pos2::new(ps.x, ps.y - 18.0),
-                    Vec2::new((badge_txt.len() as f32 * 6.8).max(76.0), 18.0),
-                );
-                painter.rect_filled(badge_rect, 0.0, p.bg_elevated);
-                painter.rect_stroke(badge_rect, 0.0, Stroke::new(1.0, p.cyan));
-                painter.text(
-                    badge_rect.center(),
-                    Align2::CENTER_CENTER,
-                    badge_txt,
-                    FontId::new(10.5, FontFamily::Monospace),
-                    p.text_primary,
-                );
+                if let Some((role_title, detail_desc)) =
+                    crate::library::describe_pin(gtype, &pref.pin_name, self.locale)
+                {
+                    let line1 = format!(" {} [{}] — {} ", pref.pin_name, st.label(), role_title);
+                    let line2 = format!(" {} ", detail_desc);
+                    let w1 = line1.chars().count() as f32 * 6.5;
+                    let w2 = line2.chars().count() as f32 * 5.9;
+                    let box_w = w1.max(w2).max(160.0) + 12.0;
+                    let box_h = 36.0;
+                    let cx = ps.x.clamp(
+                        canvas_rect.left() + box_w * 0.5 + 4.0,
+                        canvas_rect.right() - box_w * 0.5 - 4.0,
+                    );
+                    let cy = (ps.y - 28.0).max(canvas_rect.top() + box_h * 0.5 + 4.0);
+                    let badge_rect = Rect::from_center_size(Pos2::new(cx, cy), Vec2::new(box_w, box_h));
+                    painter.rect_filled(badge_rect, 2.0, p.bg_elevated);
+                    painter.rect_stroke(badge_rect, 2.0, Stroke::new(1.2, p.cyan));
+                    painter.text(
+                        Pos2::new(badge_rect.left() + 6.0, badge_rect.top() + 10.0),
+                        Align2::LEFT_CENTER,
+                        line1,
+                        FontId::new(10.5, FontFamily::Monospace),
+                        p.cyan,
+                    );
+                    painter.text(
+                        Pos2::new(badge_rect.left() + 6.0, badge_rect.top() + 25.0),
+                        Align2::LEFT_CENTER,
+                        line2,
+                        FontId::new(9.5, FontFamily::Monospace),
+                        p.text_primary,
+                    );
+                } else {
+                    let badge_txt = format!(" {} : {} ", pref.pin_name, st.label());
+                    let badge_rect = Rect::from_center_size(
+                        Pos2::new(ps.x, ps.y - 18.0),
+                        Vec2::new((badge_txt.len() as f32 * 6.8).max(76.0), 18.0),
+                    );
+                    painter.rect_filled(badge_rect, 0.0, p.bg_elevated);
+                    painter.rect_stroke(badge_rect, 0.0, Stroke::new(1.0, p.cyan));
+                    painter.text(
+                        badge_rect.center(),
+                        Align2::CENTER_CENTER,
+                        badge_txt,
+                        FontId::new(10.5, FontFamily::Monospace),
+                        p.text_primary,
+                    );
+                }
             }
 
             if let Some(ref start_pin) = self.wiring_from {

@@ -2,6 +2,37 @@
 
 All notable changes to **LogicCraft CAD** are documented in this file.
 
+## [1.1.1] - 2026-11-10
+
+### Added
+- **Top-Bar `DEMO` Menu Dropdown (`src/ui_panels.rs`, `src/i18n.rs`, `src/simulator.rs`)**:
+  - Added a dedicated **`DEMO`** menu button directly next to the **`VIEW` (`VER`)** menu on the top navigation bar across all 5 locales (`EN`, `PT`, `ES`, `FR`, `DE`).
+  - Removed the demo circuit entries from the `FILE` (`FICHEIRO`) dropdown and consolidated 5 interactive demo circuits under the new **`DEMO`** dropdown:
+    1. **4-Bit Counter + Adder + 7-Seg** (`populate_counter_adder_demo`)
+    2. **RAM 16x4 + 7-Seg Decoder** (`populate_ram_decoder_demo`)
+    3. **Pong Arcade (CPU + MMIO + Dual VRAM)** (`populate_pong_demo_standalone`)
+    4. **QWERTY Keyboard + ASCII Bus + CPU Terminal** (`populate_keyboard_terminal_demo`)
+    5. **Full Showcase Workspace (3 Pages)** (`populate_demo_circuit`)
+- **Full QWERTY / ASCII Keyboard Peripheral (`FULL_KEYBOARD_COMPONENT`)**:
+  - New comprehensive hardware keyboard component in `12 - CPU & Peripherals` featuring an interactive 5-row on-canvas keyboard (`0–9`, `Q–P`, `A–L`, `Z–M`, `Shift`, `Space`, `Bksp`, `Esc`, `Enter`, and `▲/▼/◄/►` directional keys) plus a live ASCII/Hex status readout header.
+  - Captures physical keyboard typing (`A`–`Z`, `0`–`9`, `Shift` for uppercase/lowercase ASCII, `Space`, `Enter`, `Backspace`, `Escape`, and arrow keys) as well as direct mouse clicks on any keycap on the canvas or in the Inspector panel.
+  - Outputs an 8-bit ASCII parallel bus (`ASCII_7`..`ASCII_0`), a `KEY_VALID` strobe pin, and dedicated directional/action pins (`UP`, `DOWN`, `LEFT`, `RIGHT`, `ENTER`), alongside `RST` and `CLR` inputs.
+  - Expanded Memory-Mapped I/O (`MemoryBus`) with `MMIO_KEY_LAST` (`0xF006`), `MMIO_KEY_ASCII` (`0xF007`), `MMIO_KEY_DIR` (`0xF008`), and `MMIO_KEY_MODIFIERS` (`0xF009`), also exposed as built-in assembler symbols.
+- **Detailed Pinout & Signal Descriptions for CPU, Displays, and Keyboards (`src/library.rs`, `src/canvas_view.rs`, `src/canvas_renderer.rs`, `src/ui_panels.rs`)**:
+  - Added `describe_pin()` providing localized (`EN` / `PT`) functional role titles and detailed hardware/MMIO signal descriptions for every pin of `CPU_COMPONENT`, `DISPLAY_COMPONENT`, `KEYBOARD_COMPONENT`, and `FULL_KEYBOARD_COMPONENT`.
+  - Hovering over any pin on the canvas now displays a rich multi-line tooltip with its electrical state, role title, and detailed signal description.
+  - Added crisp on-package pin labels inside the component bezels on the canvas and a collapsible **`📌 PINOUT & SIGNAL DESCRIPTIONS`** reference table in the right-hand Inspector panel.
+
+### Changed
+- **Context-Aware Toolbar Buttons Beyond Oscilloscope (`src/ui_panels.rs`)**:
+  - Toolbar buttons after **`📈 O-Scope`** now appear dynamically only when relevant hardware components exist on the active canvas:
+    - **`🗐 Memory`** is shown only when at least one memory device (`RAM`, `ROM`, or `CPU_COMPONENT`) is present on the canvas.
+    - **`🖥 CPU / ASM`** is shown only when a `CPU_COMPONENT` is present on the canvas.
+- **Removed `🏓 PONG` Toolbar Button**:
+  - Removed the standalone `🏓 PONG` button from the top action toolbar (Pong Arcade is now accessible anytime from the top-bar **`DEMO`** menu).
+
+---
+
 ## [1.1.0] - 2026-11-10
 
 ### Added
