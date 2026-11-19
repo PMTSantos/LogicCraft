@@ -15,6 +15,12 @@ pub struct TruthTableKMap {
     pub canvas_pos: [f32; 2],
     #[serde(default)]
     pub func_canvas_pos: [f32; 2],
+    #[serde(default)]
+    pub inputs_use_connectors: bool,
+    #[serde(default)]
+    pub output_use_connector: bool,
+    #[serde(default)]
+    pub connectors_local_scope: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +84,9 @@ impl TruthTableKMap {
             func_pinned_on_canvas: false,
             canvas_pos: [-8.0, -13.5],
             func_canvas_pos: [-8.0, -21.5],
+            inputs_use_connectors: false,
+            output_use_connector: false,
+            connectors_local_scope: false,
         }
     }
 

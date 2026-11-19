@@ -109,6 +109,97 @@ impl LogicCraftApp {
                         );
                     });
 
+                    let (
+                        in_lbl,
+                        in_btn_sw,
+                        in_btn_to,
+                        out_lbl,
+                        out_btn_led,
+                        out_btn_from,
+                        scope_lbl,
+                        scope_btn_global,
+                        scope_btn_local,
+                    ) = self.locale.kmap_io_strings();
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            RichText::new(in_lbl)
+                                .font(FontId::new(10.5, FontFamily::Monospace))
+                                .color(p.cyan),
+                        );
+                        if crate::theme::tool_button(
+                            ui,
+                            in_btn_sw,
+                            !kmap.inputs_use_connectors,
+                            p.cyan,
+                        )
+                        .clicked()
+                        {
+                            kmap.inputs_use_connectors = false;
+                        }
+                        if crate::theme::tool_button(
+                            ui,
+                            in_btn_to,
+                            kmap.inputs_use_connectors,
+                            p.purple,
+                        )
+                        .clicked()
+                        {
+                            kmap.inputs_use_connectors = true;
+                        }
+                        crate::theme::group_separator(ui);
+                        ui.label(
+                            RichText::new(out_lbl)
+                                .font(FontId::new(10.5, FontFamily::Monospace))
+                                .color(p.purple),
+                        );
+                        if crate::theme::tool_button(
+                            ui,
+                            out_btn_led,
+                            !kmap.output_use_connector,
+                            p.green,
+                        )
+                        .clicked()
+                        {
+                            kmap.output_use_connector = false;
+                        }
+                        if crate::theme::tool_button(
+                            ui,
+                            out_btn_from,
+                            kmap.output_use_connector,
+                            p.cyan,
+                        )
+                        .clicked()
+                        {
+                            kmap.output_use_connector = true;
+                        }
+                        crate::theme::group_separator(ui);
+                        ui.label(
+                            RichText::new(scope_lbl)
+                                .font(FontId::new(10.5, FontFamily::Monospace))
+                                .color(p.orange),
+                        );
+                        if crate::theme::tool_button(
+                            ui,
+                            scope_btn_global,
+                            !kmap.connectors_local_scope,
+                            p.cyan,
+                        )
+                        .clicked()
+                        {
+                            kmap.connectors_local_scope = false;
+                        }
+                        if crate::theme::tool_button(
+                            ui,
+                            scope_btn_local,
+                            kmap.connectors_local_scope,
+                            p.purple,
+                        )
+                        .clicked()
+                        {
+                            kmap.connectors_local_scope = true;
+                        }
+                    });
+
                     ui.horizontal_wrapped(|ui| {
                         ui.label(RichText::new("PRESETS //").font(FontId::new(10.5, FontFamily::Monospace)).color(p.text_secondary));
                         if crate::theme::tool_button(ui, "ALL 0", false, p.cyan).clicked() {
@@ -1890,5 +1981,62 @@ impl LogicCraftApp {
             });
 
         self.show_cpu_studio = open;
+    }
+
+    pub fn draw_unsaved_exit_modal(&mut self, ctx: &egui::Context) {
+        let p = crate::theme::palette(self.dark_mode);
+        let (title, prompt, btn_save_exit, btn_exit_no_save, btn_cancel) =
+            self.locale.unsaved_exit_strings();
+        let file_name = self.current_file_display_name();
+
+        let mut open = self.show_unsaved_exit_modal;
+        let mut do_save_and_exit = false;
+        let mut do_exit_without_saving = false;
+        let mut do_cancel = false;
+
+        egui::Window::new(title)
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .default_width(440.0)
+            .frame(crate::theme::window_frame(self.dark_mode))
+            .show(ctx, |ui| {
+                crate::theme::section_header(ui, &format!("FILE // {file_name} *"), p.orange);
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(prompt)
+                        .font(FontId::new(12.0, FontFamily::Proportional))
+                        .color(p.text_primary),
+                );
+                ui.add_space(12.0);
+                ui.separator();
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if crate::theme::primary_button(ui, btn_save_exit, p.green).clicked() {
+                        do_save_and_exit = true;
+                    }
+                    if crate::theme::tool_button(ui, btn_exit_no_save, false, p.red).clicked() {
+                        do_exit_without_saving = true;
+                    }
+                    if crate::theme::tool_button(ui, btn_cancel, false, p.cyan).clicked() {
+                        do_cancel = true;
+                    }
+                });
+            });
+
+        if do_save_and_exit {
+            if self.save_circuit_dialog(false) {
+                self.show_unsaved_exit_modal = false;
+                self.allow_immediate_close = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+        } else if do_exit_without_saving {
+            self.show_unsaved_exit_modal = false;
+            self.allow_immediate_close = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        } else if do_cancel || !open {
+            self.show_unsaved_exit_modal = false;
+        }
     }
 }

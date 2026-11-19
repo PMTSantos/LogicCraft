@@ -2,6 +2,20 @@
 
 All notable changes to **LogicCraft CAD** are documented in this file.
 
+## [1.2.0] - 2026-11-19
+
+### Added
+- **Karnaugh Map Configurable Inputs, Outputs & Connector Scope (`src/kmap.rs`, `src/simulator.rs`, `src/ui_dialogs.rs`, `src/cdl_io.rs`)**:
+  - Added synthesis terminal selectors in the Karnaugh Map Studio allowing inputs to be generated either as **Buttons / Toggle Switches** (`AA_TOGGLE`) or **`TO` Connectors** (`DE_TO`) automatically named after each input variable (`var_names[i]`).
+  - Allowed the K-Map output to be generated either as an **LED** (`GA_LED`) or a **`FROM` Connector** (`DA_FROM`) automatically named after the K-Map output (`output_name`).
+  - Added a **Connector Scope** selector allowing synthesized `TO` / `FROM` connectors to be configured as either **Global (Shared)** across all pages (`TAG_SCOPE = "SHARED"`) or **Local (Page)** (`TAG_SCOPE = "LOCAL"`), with full `.lcc` / `.cdl` file persistence.
+- **Centered Top-Bar File Name, Unsaved Indicator (`*`) & Exit Confirmation Modal (`src/ui_panels.rs`, `src/ui_dialogs.rs`, `src/main.rs`, `src/i18n.rs`)**:
+  - Displayed the active circuit file name (or localized untitled name) centered in the top title/menu bar between the navigation menus and window caption buttons.
+  - Added structural circuit change tracking (`compute_circuit_fingerprint` / `has_unsaved_changes`) that appends `*` and a localized unsaved badge (`[● UNSAVED]` / `[● NÃO GUARDADO]`) in the top bar whenever modifications exist.
+  - Added an **Unsaved Changes** confirmation window (`draw_unsaved_exit_modal`) when closing the application with unsaved edits, allowing the user to choose **Save & Exit**, **Exit Without Saving**, or **Cancel**.
+
+---
+
 ## [1.1.2] - 2026-11-19
 
 ### Fixed

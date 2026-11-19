@@ -167,6 +167,9 @@ pub struct LogicCraftApp {
     pub cpu_mem_addr_input: String,
     pub show_about_dialog: bool,
     pub show_update_dialog: bool,
+    pub show_unsaved_exit_modal: bool,
+    pub allow_immediate_close: bool,
+    pub saved_circuit_fingerprint: u64,
     pub export_with_grid: bool,
     pub export_with_color: bool,
     pub canvas_size: Vec2,
@@ -261,6 +264,9 @@ impl LogicCraftApp {
             cpu_mem_addr_input: "0x8000".to_string(),
             show_about_dialog: false,
             show_update_dialog: false,
+            show_unsaved_exit_modal: false,
+            allow_immediate_close: false,
+            saved_circuit_fingerprint: 0,
             export_with_grid: settings.export_with_grid,
             export_with_color: settings.export_with_color,
             canvas_size: Vec2::new(1000.0, 600.0),
@@ -330,6 +336,7 @@ impl LogicCraftApp {
         crate::theme::install_fonts(&cc.egui_ctx);
         app.apply_theme(&cc.egui_ctx);
         app.save_settings();
+        app.mark_saved();
 
         // Automatically check for updates on startup (unless running in headless screenshot mode)
         if app.screenshot_target.is_none() {
@@ -651,6 +658,142 @@ impl LogicCraftApp {
         }
     }
 
+    pub fn current_file_display_name(&self) -> String {
+        self.current_file_path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| self.locale.untitled_filename().to_string())
+    }
+
+    pub fn compute_circuit_fingerprint(&self) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut h = DefaultHasher::new();
+        self.sim.pages.len().hash(&mut h);
+        for page in &self.sim.pages {
+            page.name.hash(&mut h);
+            page.gates.len().hash(&mut h);
+            for g in &page.gates {
+                g.id.hash(&mut h);
+                g.type_name.hash(&mut h);
+                ((g.pos[0] * 100.0).round() as i32).hash(&mut h);
+                ((g.pos[1] * 100.0).round() as i32).hash(&mut h);
+                ((g.angle_deg * 10.0).round() as i32).hash(&mut h);
+
+                let mut gp: Vec<(&String, &String)> = g.gparams.iter().collect();
+                gp.sort_by(|a, b| a.0.cmp(b.0));
+                for (k, v) in gp {
+                    k.hash(&mut h);
+                    v.hash(&mut h);
+                }
+
+                let mut lp: Vec<(&String, &String)> = g
+                    .lparams
+                    .iter()
+                    .filter(|(k, _)| k.as_str() != "CURRENT_VALUE" && !k.starts_with("STATE_"))
+                    .collect();
+                lp.sort_by(|a, b| a.0.cmp(b.0));
+                for (k, v) in lp {
+                    k.hash(&mut h);
+                    v.hash(&mut h);
+                }
+
+                let mut mem: Vec<(&u16, &u16)> = g.memory.iter().collect();
+                mem.sort_by(|a, b| a.0.cmp(b.0));
+                for (addr, val) in mem {
+                    addr.hash(&mut h);
+                    val.hash(&mut h);
+                }
+            }
+
+            page.wires.len().hash(&mut h);
+            for w in &page.wires {
+                w.id.hash(&mut h);
+                w.label.hash(&mut h);
+                w.endpoints.len().hash(&mut h);
+                for ep in &w.endpoints {
+                    ep.gate_id.hash(&mut h);
+                    ep.pin_name.hash(&mut h);
+                }
+                w.custom_mid_x
+                    .map(|v| (v * 100.0).round() as i32)
+                    .hash(&mut h);
+                w.custom_mid_y
+                    .map(|v| (v * 100.0).round() as i32)
+                    .hash(&mut h);
+                w.waypoints.len().hash(&mut h);
+                for pt in &w.waypoints {
+                    ((pt[0] * 100.0).round() as i32).hash(&mut h);
+                    ((pt[1] * 100.0).round() as i32).hash(&mut h);
+                }
+                w.breakpoints.hash(&mut h);
+            }
+        }
+
+        self.sim.kmaps.len().hash(&mut h);
+        for km in &self.sim.kmaps {
+            km.name.hash(&mut h);
+            km.num_vars.hash(&mut h);
+            km.var_names.hash(&mut h);
+            km.output_name.hash(&mut h);
+            km.values.hash(&mut h);
+            km.pinned_on_canvas.hash(&mut h);
+            km.func_pinned_on_canvas.hash(&mut h);
+            ((km.canvas_pos[0] * 100.0).round() as i32).hash(&mut h);
+            ((km.canvas_pos[1] * 100.0).round() as i32).hash(&mut h);
+            ((km.func_canvas_pos[0] * 100.0).round() as i32).hash(&mut h);
+            ((km.func_canvas_pos[1] * 100.0).round() as i32).hash(&mut h);
+            km.inputs_use_connectors.hash(&mut h);
+            km.output_use_connector.hash(&mut h);
+            km.connectors_local_scope.hash(&mut h);
+        }
+
+        let mut specs: Vec<&String> = self.lib.custom_specs.keys().collect();
+        specs.sort();
+        for k in specs {
+            k.hash(&mut h);
+            if let Some(spec) = self.lib.custom_specs.get(k) {
+                spec.name.hash(&mut h);
+                spec.chip_label.hash(&mut h);
+                spec.description.hash(&mut h);
+                spec.inputs.hash(&mut h);
+                spec.outputs.hash(&mut h);
+                spec.state_bits.hash(&mut h);
+                spec.clock_pin.hash(&mut h);
+                spec.reset_pin.hash(&mut h);
+                let mut eqs: Vec<(&String, &String)> = spec.equations.iter().collect();
+                eqs.sort_by(|a, b| a.0.cmp(b.0));
+                for (ek, ev) in eqs {
+                    ek.hash(&mut h);
+                    ev.hash(&mut h);
+                }
+            }
+        }
+
+        self.sim.cpu.source_code.hash(&mut h);
+        h.finish()
+    }
+
+    pub fn mark_saved(&mut self) {
+        self.saved_circuit_fingerprint = self.compute_circuit_fingerprint();
+    }
+
+    pub fn has_unsaved_changes(&self) -> bool {
+        self.compute_circuit_fingerprint() != self.saved_circuit_fingerprint
+    }
+
+    pub fn request_app_close(&mut self, ctx: &egui::Context) {
+        if self.has_unsaved_changes() {
+            self.show_unsaved_exit_modal = true;
+        } else {
+            self.allow_immediate_close = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+    }
+
     pub fn load_circuit_from_path(&mut self, path: &Path) -> bool {
         match std::fs::read_to_string(path) {
             Ok(txt) => {
@@ -658,6 +801,7 @@ impl LogicCraftApp {
                 match import_cdl(&mut self.sim, &mut self.lib, &txt) {
                     Ok(()) => {
                         self.current_file_path = Some(path.to_path_buf());
+                        self.mark_saved();
                         self.status_message = format!("Opened circuit from {}", path.display());
                         true
                     }
@@ -674,7 +818,7 @@ impl LogicCraftApp {
         }
     }
 
-    pub fn save_circuit_dialog(&mut self, save_as: bool) {
+    pub fn save_circuit_dialog(&mut self, save_as: bool) -> bool {
         let target = if !save_as {
             self.current_file_path.clone()
         } else {
@@ -691,9 +835,12 @@ impl LogicCraftApp {
             let xml = export_cdl(&self.sim, Some(&self.lib));
             if std::fs::write(&path, xml).is_ok() {
                 self.current_file_path = Some(path.clone());
+                self.mark_saved();
                 self.status_message = format!("Saved circuit to {}", path.display());
+                return true;
             }
         }
+        false
     }
 
     pub fn add_new_tab(&mut self) {
@@ -745,6 +892,7 @@ impl LogicCraftApp {
             });
         let mut do_copy = false;
         let mut do_paste = false;
+        let mut do_save = false;
         ctx.input(|i| {
             let ctrl = i.modifiers.ctrl || i.modifiers.command;
             // Capture real-time arcade & full QWERTY/ASCII keyboard state for MMIO & Keyboard components
@@ -846,6 +994,8 @@ impl LogicCraftApp {
                     do_copy = true;
                 } else if paste_ev {
                     do_paste = true;
+                } else if ctrl && i.key_pressed(Key::S) {
+                    do_save = true;
                 } else if ctrl && i.key_pressed(Key::Z) {
                     self.undo();
                 } else if ctrl && i.key_pressed(Key::Y) {
@@ -897,6 +1047,9 @@ impl LogicCraftApp {
         }
         if do_paste {
             self.paste_clipboard();
+        }
+        if do_save {
+            let _ = self.save_circuit_dialog(false);
         }
     }
 
@@ -1026,13 +1179,18 @@ impl eframe::App for LogicCraftApp {
             self.load_circuit_from_path(&path);
         }
 
-        // Update window title with active file name
-        let title = if let Some(ref p) = self.current_file_path {
-            let fname = p.file_name().and_then(|n| n.to_str()).unwrap_or("circuit.lcc");
-            format!("LogicCraft CAD — {fname}")
-        } else {
-            "LogicCraft CAD — Digital Logic Circuit Studio".to_string()
-        };
+        // Intercept window close requests if there are unsaved changes
+        if ctx.input(|i| i.viewport().close_requested()) {
+            if !self.allow_immediate_close && self.has_unsaved_changes() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.show_unsaved_exit_modal = true;
+            }
+        }
+
+        // Update window title with active file name and unsaved indicator
+        let fname = self.current_file_display_name();
+        let dirty_suffix = if self.has_unsaved_changes() { " *" } else { "" };
+        let title = format!("LogicCraft CAD — {fname}{dirty_suffix}");
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
 
         // Check if a screenshot event arrived from egui ViewportCommand::Screenshot
@@ -1123,6 +1281,9 @@ impl eframe::App for LogicCraftApp {
         if self.show_update_dialog {
             self.draw_update_modal(ctx);
         }
+        if self.show_unsaved_exit_modal {
+            self.draw_unsaved_exit_modal(ctx);
+        }
 
         self.draw_window_resize_handles(ctx);
 
@@ -1159,7 +1320,7 @@ mod tests {
     fn create_test_app() -> LogicCraftApp {
         let lib = GateLibrary::new();
         let sim = CircuitSimulator::new(&lib);
-        LogicCraftApp {
+        let mut app = LogicCraftApp {
             lib,
             sim,
             locale: Locale::En,
@@ -1178,6 +1339,9 @@ mod tests {
             cpu_mem_addr_input: "0x8000".to_string(),
             show_about_dialog: false,
             show_update_dialog: false,
+            show_unsaved_exit_modal: false,
+            allow_immediate_close: false,
+            saved_circuit_fingerprint: 0,
             export_with_grid: true,
             export_with_color: true,
             canvas_size: Vec2::new(1000.0, 600.0),
@@ -1228,7 +1392,9 @@ mod tests {
             frame_count: 0,
             screenshot_target: None,
             screenshot_requested: false,
-        }
+        };
+        app.mark_saved();
+        app
     }
 
     #[test]
@@ -1489,5 +1655,85 @@ mod tests {
             "Sidebar width grew uncontrollably: {:?}",
             widths
         );
+    }
+
+    #[test]
+    fn test_kmap_synthesis_with_connectors_and_scope() {
+        let mut lib = GateLibrary::new();
+        let mut sim = CircuitSimulator::new(&lib);
+        sim.pages[0].gates.clear();
+        sim.pages[0].wires.clear();
+
+        let mut km = crate::kmap::TruthTableKMap::new_default("Connector Test K-Map");
+        km.num_vars = 2;
+        km.var_names = ["IN_X".into(), "IN_Y".into(), "C".into(), "D".into()];
+        km.output_name = "OUT_Z".into();
+        km.inputs_use_connectors = true;
+        km.output_use_connector = true;
+        km.connectors_local_scope = true;
+        sim.kmaps = vec![km];
+        sim.active_kmap = 0;
+
+        sim.synthesize_kmap_to_page(&lib, 0, 0);
+
+        let to_gates: Vec<&GateInstance> = sim.pages[0]
+            .gates
+            .iter()
+            .filter(|g| g.type_name == "DE_TO")
+            .collect();
+        assert_eq!(to_gates.len(), 2);
+        assert_eq!(
+            to_gates[0].lparams.get("JUNCTION_ID").map(|s| s.as_str()),
+            Some("IN_X")
+        );
+        assert_eq!(
+            to_gates[1].lparams.get("JUNCTION_ID").map(|s| s.as_str()),
+            Some("IN_Y")
+        );
+        assert!(to_gates[0].is_tag_local());
+        assert!(to_gates[1].is_tag_local());
+
+        let from_gates: Vec<&GateInstance> = sim.pages[0]
+            .gates
+            .iter()
+            .filter(|g| g.type_name == "DA_FROM")
+            .collect();
+        assert_eq!(from_gates.len(), 1);
+        assert_eq!(
+            from_gates[0].lparams.get("JUNCTION_ID").map(|s| s.as_str()),
+            Some("OUT_Z")
+        );
+        assert!(from_gates[0].is_tag_local());
+
+        // Verify CDL roundtrip of connector options
+        let xml = export_cdl(&sim, Some(&lib));
+        let mut restored_sim = CircuitSimulator::new(&lib);
+        import_cdl(&mut restored_sim, &mut lib, &xml).unwrap();
+        let rkm = &restored_sim.kmaps[0];
+        assert!(rkm.inputs_use_connectors);
+        assert!(rkm.output_use_connector);
+        assert!(rkm.connectors_local_scope);
+    }
+
+    #[test]
+    fn test_unsaved_changes_tracking_and_close_modal() {
+        let mut app = create_test_app();
+        let ctx = egui::Context::default();
+        assert!(!app.has_unsaved_changes());
+
+        // Modify the circuit and verify dirty flag triggers
+        app.save_undo_snapshot();
+        app.sim.add_gate_on_page(&app.lib, 0, "AA_AND2", [0.0, 0.0]);
+        assert!(app.has_unsaved_changes());
+
+        // Requesting close while dirty opens the unsaved exit modal instead of closing immediately
+        app.request_app_close(&ctx);
+        assert!(app.show_unsaved_exit_modal);
+        assert!(!app.allow_immediate_close);
+
+        // Undo restores the saved circuit state and clears dirty flag
+        app.show_unsaved_exit_modal = false;
+        app.undo();
+        assert!(!app.has_unsaved_changes());
     }
 }

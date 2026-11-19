@@ -68,6 +68,152 @@ impl Locale {
         }
     }
 
+    /// Default untitled circuit file name displayed in the top bar before saving.
+    pub fn untitled_filename(self) -> &'static str {
+        match self {
+            Self::Pt => "sem_titulo.lcc",
+            Self::Es => "sin_titulo.lcc",
+            Self::Fr => "sans_titre.lcc",
+            Self::De => "unbenannt.lcc",
+            Self::En => "untitled.lcc",
+        }
+    }
+
+    /// Short localized badge indicating the circuit has unsaved modifications.
+    pub fn unsaved_badge(self) -> &'static str {
+        match self {
+            Self::Pt => "NÃO GUARDADO",
+            Self::Es => "SIN GUARDAR",
+            Self::Fr => "NON ENREGISTRÉ",
+            Self::De => "UNGESPEICHERT",
+            Self::En => "UNSAVED",
+        }
+    }
+
+    /// Localized strings for the Unsaved Changes exit confirmation dialog:
+    /// `(window_title, prompt_message, save_and_exit_btn, exit_without_saving_btn, cancel_btn)`.
+    pub fn unsaved_exit_strings(
+        self,
+    ) -> (
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+    ) {
+        match self {
+            Self::Pt => (
+                "⚠ Alterações Não Guardadas",
+                "Existem alterações não guardadas no circuito atual. Deseja guardar as alterações antes de fechar a aplicação?",
+                "💾 Guardar e Sair",
+                "🚪 Sair Sem Guardar",
+                "✕ Cancelar",
+            ),
+            Self::Es => (
+                "⚠ Cambios Sin Guardar",
+                "Hay cambios sin guardar en el circuito actual. ¿Desea guardar los cambios antes de cerrar la aplicación?",
+                "💾 Guardar y Salir",
+                "🚪 Salir Sin Guardar",
+                "✕ Cancelar",
+            ),
+            Self::Fr => (
+                "⚠ Modifications Non Enregistrées",
+                "Votre circuit contient des modifications non enregistrées. Voulez-vous enregistrer avant de quitter l'application ?",
+                "💾 Enregistrer et Quitter",
+                "🚪 Quitter Sans Enregistrer",
+                "✕ Annuler",
+            ),
+            Self::De => (
+                "⚠ Ungespeicherte Änderungen",
+                "Ihre aktuelle Schaltung enthält ungespeicherte Änderungen. Möchten Sie vor dem Beenden speichern?",
+                "💾 Speichern & Beenden",
+                "🚪 Ohne Speichern Beenden",
+                "✕ Abbrechen",
+            ),
+            Self::En => (
+                "⚠ Unsaved Changes",
+                "You have unsaved changes in the current circuit. Would you like to save your changes before exiting?",
+                "💾 Save & Exit",
+                "🚪 Exit Without Saving",
+                "✕ Cancel",
+            ),
+        }
+    }
+
+    /// Localized strings for Karnaugh Map input/output terminal synthesis options:
+    /// `(inputs_lbl, in_buttons_btn, in_to_conn_btn, output_lbl, out_led_btn, out_from_conn_btn, scope_lbl, scope_global_btn, scope_local_btn)`.
+    pub fn kmap_io_strings(
+        self,
+    ) -> (
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+    ) {
+        match self {
+            Self::Pt => (
+                "ENTRADAS //",
+                "🔘 Botões / Interruptores",
+                "🔌 Conectores TO",
+                "SAÍDA //",
+                "💡 LED",
+                "🔌 Conector FROM",
+                "ÂMBITO //",
+                "🌐 Global (Partilhado)",
+                "📄 Local (Página)",
+            ),
+            Self::Es => (
+                "ENTRADAS //",
+                "🔘 Botones / Interruptores",
+                "🔌 Conectores TO",
+                "SALIDA //",
+                "💡 LED",
+                "🔌 Conector FROM",
+                "ÁMBITO //",
+                "🌐 Global (Compartido)",
+                "📄 Local (Página)",
+            ),
+            Self::Fr => (
+                "ENTRÉES //",
+                "🔘 Boutons / Interrupteurs",
+                "🔌 Connecteurs TO",
+                "SORTIE //",
+                "💡 LED",
+                "🔌 Connecteur FROM",
+                "PORTÉE //",
+                "🌐 Global (Partagé)",
+                "📄 Local (Page)",
+            ),
+            Self::De => (
+                "EINGÄNGE //",
+                "🔘 Taster / Schalter",
+                "🔌 TO-Verbinder",
+                "AUSGANG //",
+                "💡 LED",
+                "🔌 FROM-Verbinder",
+                "BEREICH //",
+                "🌐 Global (Geteilt)",
+                "📄 Lokal (Seite)",
+            ),
+            Self::En => (
+                "INPUTS //",
+                "🔘 Buttons / Switches",
+                "🔌 TO Connectors",
+                "OUTPUT //",
+                "💡 LED",
+                "🔌 FROM Connector",
+                "SCOPE //",
+                "🌐 Global (Shared)",
+                "📄 Local (Page)",
+            ),
+        }
+    }
+
     /// Cycling keyboard shortcut and workflow tips displayed in the footer status bar.
     pub fn cycling_tips(self) -> &'static [&'static str] {
         match self {

@@ -268,6 +268,10 @@ User preferences are automatically preserved across application restarts in:
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
+### v1.2.0
+- **Added**: Karnaugh Map synthesis options to generate inputs as **Buttons/Switches** or **`TO` Connectors** (`DE_TO`) and the output as an **LED** or **`FROM` Connector** (`DA_FROM`) with matching variable/output names and selectable **Global (Shared)** or **Local (Page)** scope.
+- **Added**: Centered active file name display in the top bar with a live `*` and localized unsaved badge (`[● UNSAVED]` / `[● NÃO GUARDADO]`) when edits are made, plus an **Unsaved Changes** confirmation dialog on exit (**Save & Exit**, **Exit Without Saving**, or **Cancel**).
+
 ### v1.1.2
 - **Fixed**: Prevented the left component palette sidebar from continuously expanding across the screen when typing in the component search box (`SEARCH //`).
 

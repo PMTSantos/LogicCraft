@@ -954,12 +954,26 @@ impl CircuitSimulator {
         let base_x = -12.0f32;
         let base_y = -15.0f32;
 
-        // Place input toggle switches and inverters for each variable
+        // Place input toggle switches (or `DE_TO` connectors) and inverters for each variable
         let mut var_sw_ids = Vec::new();
         let mut var_inv_ids = Vec::new();
+        let in_type = if kmap.inputs_use_connectors {
+            "DE_TO"
+        } else {
+            "AA_TOGGLE"
+        };
         for i in 0..n {
             let y = base_y - (i as f32) * 4.5;
-            let sw_id = self.add_gate_on_page(lib, page_idx, "AA_TOGGLE", [base_x, y]);
+            let var_name = kmap.effective_var_name(i).to_string();
+            let sw_id = self.add_gate_on_page(lib, page_idx, in_type, [base_x, y]);
+            if kmap.inputs_use_connectors {
+                if let Some(page) = self.pages.get_mut(page_idx) {
+                    if let Some(g) = page.gates.iter_mut().find(|g| g.id == sw_id) {
+                        g.lparams.insert("JUNCTION_ID".into(), var_name.clone());
+                        g.set_tag_local(kmap.connectors_local_scope);
+                    }
+                }
+            }
             let inv_id = self.add_gate_on_page(lib, page_idx, "AE_SMALL_INVERTER", [base_x + 6.5, y - 1.5]);
             self.connect_pins(
                 lib,
@@ -968,7 +982,7 @@ impl CircuitSimulator {
                 "OUT",
                 inv_id,
                 "IN_0",
-                kmap.effective_var_name(i),
+                &var_name,
             );
             var_sw_ids.push(sw_id);
             var_inv_ids.push(inv_id);
@@ -1016,16 +1030,41 @@ impl CircuitSimulator {
             }
         }
 
-        let out_led = self.add_gate_on_page(lib, page_idx, "GA_LED", [base_x + 29.0, base_y - 3.0]);
-        if term_out_pins.len() == 1 {
+        let out_name = kmap.effective_output_name().to_string();
+        let (out_type, out_pin) = if kmap.output_use_connector {
+            ("DA_FROM", "IN")
+        } else {
+            ("GA_LED", "IN_0")
+        };
+        let out_gate = self.add_gate_on_page(lib, page_idx, out_type, [base_x + 29.0, base_y - 3.0]);
+        if kmap.output_use_connector {
+            if let Some(page) = self.pages.get_mut(page_idx) {
+                if let Some(g) = page.gates.iter_mut().find(|g| g.id == out_gate) {
+                    g.lparams.insert("JUNCTION_ID".into(), out_name.clone());
+                    g.set_tag_local(kmap.connectors_local_scope);
+                }
+            }
+        }
+        if term_out_pins.is_empty() {
+            let gnd = self.add_gate_on_page(lib, page_idx, "EA_GND", [base_x + 22.5, base_y - 3.0]);
+            self.connect_pins(
+                lib,
+                page_idx,
+                gnd,
+                "OUT_0",
+                out_gate,
+                out_pin,
+                &out_name,
+            );
+        } else if term_out_pins.len() == 1 {
             self.connect_pins(
                 lib,
                 page_idx,
                 term_out_pins[0].0,
                 &term_out_pins[0].1,
-                out_led,
-                "IN_0",
-                kmap.effective_output_name(),
+                out_gate,
+                out_pin,
+                &out_name,
             );
         } else if term_out_pins.len() >= 2 {
             let or_type = match term_out_pins.len() {
@@ -1051,9 +1090,9 @@ impl CircuitSimulator {
                 page_idx,
                 or_id,
                 "OUT",
-                out_led,
-                "IN_0",
-                kmap.effective_output_name(),
+                out_gate,
+                out_pin,
+                &out_name,
             );
         }
     }

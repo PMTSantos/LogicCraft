@@ -135,6 +135,18 @@ pub fn export_cdl(sim: &CircuitSimulator, lib: Option<&GateLibrary>) -> String {
             out.push_str(&format!("<func_pinned_on_canvas>{}</func_pinned_on_canvas>\n", km.func_pinned_on_canvas));
             out.push_str(&format!("<canvas_pos>{:.2},{:.2}</canvas_pos>\n", km.canvas_pos[0], km.canvas_pos[1]));
             out.push_str(&format!("<func_canvas_pos>{:.2},{:.2}</func_canvas_pos>\n", km.func_canvas_pos[0], km.func_canvas_pos[1]));
+            out.push_str(&format!(
+                "<inputs_use_connectors>{}</inputs_use_connectors>\n",
+                km.inputs_use_connectors
+            ));
+            out.push_str(&format!(
+                "<output_use_connector>{}</output_use_connector>\n",
+                km.output_use_connector
+            ));
+            out.push_str(&format!(
+                "<connectors_local_scope>{}</connectors_local_scope>\n",
+                km.connectors_local_scope
+            ));
             out.push_str("</kmap>\n");
         }
         out.push_str("</kmaps>\n");
@@ -450,6 +462,15 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &mut GateLibrary, content: &s
                     Some([x, y])
                 })
                 .unwrap_or([-8.0, -21.5]);
+            let inputs_use_connectors = extract_tag(&km_block, "inputs_use_connectors")
+                .map(|s| s.trim().eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+            let output_use_connector = extract_tag(&km_block, "output_use_connector")
+                .map(|s| s.trim().eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+            let connectors_local_scope = extract_tag(&km_block, "connectors_local_scope")
+                .map(|s| s.trim().eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
 
             parsed_kmaps.push(TruthTableKMap {
                 name,
@@ -461,6 +482,9 @@ pub fn import_cdl(sim: &mut CircuitSimulator, lib: &mut GateLibrary, content: &s
                 func_pinned_on_canvas,
                 canvas_pos,
                 func_canvas_pos,
+                inputs_use_connectors,
+                output_use_connector,
+                connectors_local_scope,
             });
         }
         if !parsed_kmaps.is_empty() {

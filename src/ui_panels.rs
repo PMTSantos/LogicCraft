@@ -61,6 +61,8 @@ impl LogicCraftApp {
                             self.save_undo_snapshot();
                             self.sim.pages = vec![CircuitPage::new("Page 1")];
                             self.sim.current_page = 0;
+                            self.current_file_path = None;
+                            self.mark_saved();
                             self.status_message = "Created new blank circuit.".to_string();
                             ui.close_menu();
                         }
@@ -76,11 +78,11 @@ impl LogicCraftApp {
                         }
                         if ui.button(tr.file_save).clicked() {
                             ui.close_menu();
-                            self.save_circuit_dialog(false);
+                            let _ = self.save_circuit_dialog(false);
                         }
                         if ui.button(tr.file_save_as).clicked() {
                             ui.close_menu();
-                            self.save_circuit_dialog(true);
+                            let _ = self.save_circuit_dialog(true);
                         }
                         ui.separator();
                         if ui.checkbox(&mut self.export_with_grid, tr.file_export_grid).changed() {
@@ -99,7 +101,8 @@ impl LogicCraftApp {
                         }
                         ui.separator();
                         if ui.button(tr.file_exit).clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            ui.close_menu();
+                            self.request_app_close(ctx);
                         }
                     });
 
@@ -335,12 +338,62 @@ impl LogicCraftApp {
                     });
 
                     // Embed default window buttons (minimize, maximize, close) at the other end of the bar
+                    let full_bar_rect = ui.max_rect();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        Self::draw_window_caption_buttons(ui, ctx, p, self.locale);
+                        self.draw_window_caption_buttons(ui, ctx, p);
 
                         // Empty space between menus and caption buttons acts as a draggable titlebar strip
+                        // and displays the centered current file name + unsaved changes indicator
                         let remaining_rect = ui.available_rect_before_wrap();
                         if remaining_rect.width() > 10.0 {
+                            let file_name = self.current_file_display_name();
+                            let is_dirty = self.has_unsaved_changes();
+                            let title_text = if is_dirty {
+                                format!(
+                                    "🗎 {} *  [● {}]",
+                                    file_name,
+                                    self.locale.unsaved_badge()
+                                )
+                            } else {
+                                format!("🗎 {}", file_name)
+                            };
+                            let text_col = if is_dirty { p.orange } else { p.text_secondary };
+                            let galley = ui.painter().layout_no_wrap(
+                                title_text,
+                                FontId::new(10.5, FontFamily::Monospace),
+                                text_col,
+                            );
+                            let half_w = galley.size().x * 0.5 + 8.0;
+                            let min_cx = remaining_rect.left() + half_w;
+                            let max_cx = (remaining_rect.right() - half_w).max(min_cx);
+                            let center_x = full_bar_rect.center().x.clamp(min_cx, max_cx);
+                            let center_y = remaining_rect.center().y;
+
+                            if is_dirty {
+                                let pill_rect = Rect::from_center_size(
+                                    Pos2::new(center_x, center_y),
+                                    Vec2::new(galley.size().x + 14.0, 18.0),
+                                );
+                                ui.painter().rect_filled(
+                                    pill_rect,
+                                    1.0,
+                                    crate::theme::alpha(p.orange, 28),
+                                );
+                                ui.painter().rect_stroke(
+                                    pill_rect,
+                                    1.0,
+                                    Stroke::new(1.0, crate::theme::alpha(p.orange, 140)),
+                                );
+                            }
+                            ui.painter().galley(
+                                Pos2::new(
+                                    center_x - galley.size().x * 0.5,
+                                    center_y - galley.size().y * 0.5,
+                                ),
+                                galley,
+                                text_col,
+                            );
+
                             let drag_resp = ui.interact(
                                 remaining_rect,
                                 ui.id().with("title_bar_drag_spacer"),
@@ -378,6 +431,8 @@ impl LogicCraftApp {
                             self.save_undo_snapshot();
                             self.sim.pages = vec![CircuitPage::new("Page 1")];
                             self.sim.current_page = 0;
+                            self.current_file_path = None;
+                            self.mark_saved();
                         }
                         if crate::theme::tool_button(ui, tr.tb_open, false, p.cyan)
                             .on_hover_text(tr.file_open)
@@ -394,7 +449,7 @@ impl LogicCraftApp {
                             .on_hover_text(tr.file_save)
                             .clicked()
                         {
-                            self.save_circuit_dialog(false);
+                            let _ = self.save_circuit_dialog(false);
                         }
                         if crate::theme::tool_button(ui, tr.tb_copy_img, false, p.cyan)
                             .on_hover_text(tr.file_copy_image)
@@ -590,12 +645,12 @@ impl LogicCraftApp {
 
     /// Renders the embedded window management buttons: Minimize, Maximize/Restore, and Close.
     pub fn draw_window_caption_buttons(
+        &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
         p: crate::theme::Palette,
-        locale: crate::i18n::Locale,
     ) {
-        let (tip_min, tip_max, tip_res, tip_cls) = locale.win_tooltips();
+        let (tip_min, tip_max, tip_res, tip_cls) = self.locale.win_tooltips();
         let is_maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
         let hover_bg = if p.bg_main == crate::theme::BG_MAIN {
             Color32::from_rgb(0x22, 0x2A, 0x35)
@@ -635,7 +690,7 @@ impl LogicCraftApp {
         );
         let close_resp = close_resp.on_hover_text(tip_cls);
         if close_resp.clicked() {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            self.request_app_close(ctx);
         }
 
         // 2. MAXIMIZE / RESTORE BUTTON (Middle)
