@@ -1449,4 +1449,45 @@ mod tests {
         rw_mut.remove_breakpoint(0);
         assert!(rw_mut.breakpoints.is_empty());
     }
+
+    #[test]
+    fn test_sidebar_width_stability_when_searching() {
+        let mut app = create_test_app();
+        let ctx = egui::Context::default();
+        app.apply_theme(&ctx);
+
+        let search_id = egui::Id::new("palette_search_input");
+        let mut widths = Vec::new();
+        for i in 0..15 {
+            let mut events = Vec::new();
+            match i {
+                2 => events.push(egui::Event::Text("a".to_string())),
+                3 => events.push(egui::Event::Text("n".to_string())),
+                4 => events.push(egui::Event::Text("d".to_string())),
+                _ => {}
+            }
+            let raw_input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::Vec2::new(1280.0, 800.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let _ = ctx.run(raw_input, |ctx| {
+                if i == 1 {
+                    ctx.memory_mut(|m| m.request_focus(search_id));
+                }
+                app.draw_left_sidebar(ctx);
+            });
+            let left_w = ctx.available_rect().left();
+            widths.push(left_w);
+        }
+        assert_eq!(app.palette_search, "and");
+        assert!(
+            (widths.last().unwrap() - widths[1]).abs() < 1.0,
+            "Sidebar width grew uncontrollably: {:?}",
+            widths
+        );
+    }
 }

@@ -2,6 +2,15 @@
 
 All notable changes to **LogicCraft CAD** are documented in this file.
 
+## [1.1.2] - 2026-11-19
+
+### Fixed
+- **Component Search Bar Sidebar Expansion (`src/ui_panels.rs`)**:
+  - Fixed a layout feedback loop where typing in the left sidebar component search input (`SEARCH //`) caused the `TextEdit` frame margins and clear button (`×`) to exceed `ui.available_width()`, continuously expanding the left sidebar panel across the screen frame after frame.
+  - Constrained the inner sidebar width (`ui.set_max_width`), adjusted the `TextEdit` desired width calculation to account for frame margins, spacing, and the clear button, added a stable widget ID (`palette_search_input`), disabled scroll area auto-shrinking, and capped the maximum sidebar resize width.
+
+---
+
 ## [1.1.1] - 2026-11-10
 
 ### Added

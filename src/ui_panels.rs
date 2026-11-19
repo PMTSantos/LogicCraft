@@ -1004,8 +1004,10 @@ impl LogicCraftApp {
             .resizable(true)
             .default_width(280.0)
             .min_width(240.0)
+            .max_width(450.0)
             .frame(crate::theme::panel_frame(self.dark_mode))
             .show(ctx, |ui| {
+                ui.set_max_width(ui.available_width());
                 crate::theme::section_header(ui, tr.palette_heading, p.cyan);
 
                 ui.horizontal(|ui| {
@@ -1015,10 +1017,13 @@ impl LogicCraftApp {
                             .color(p.text_secondary),
                     );
                     let has_search = !self.palette_search.is_empty();
+                    let text_w =
+                        (ui.available_width() - if has_search { 34.0 } else { 8.0 }).max(40.0);
                     ui.add(
                         egui::TextEdit::singleline(&mut self.palette_search)
+                            .id(egui::Id::new("palette_search_input"))
                             .hint_text(tr.palette_search_hint)
-                            .desired_width(ui.available_width() - if has_search { 24.0 } else { 0.0 }),
+                            .desired_width(text_w),
                     );
                     if has_search && ui.small_button("×").clicked() {
                         self.palette_search.clear();
@@ -1067,6 +1072,7 @@ impl LogicCraftApp {
 
                 egui::ScrollArea::vertical()
                     .id_source("palette_scroll")
+                    .auto_shrink([false, false])
                     .max_height(ui.available_height() - MINIMAP_HEIGHT - 210.0)
                     .show(ui, |ui| {
                         let query = self.palette_search.trim().to_lowercase();

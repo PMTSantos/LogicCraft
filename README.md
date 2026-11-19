@@ -268,6 +268,9 @@ User preferences are automatically preserved across application restarts in:
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
+### v1.1.2
+- **Fixed**: Prevented the left component palette sidebar from continuously expanding across the screen when typing in the component search box (`SEARCH //`).
+
 ### v1.1.1
 - **Added**: Top-bar **`DEMO`** menu dropdown right next to **`VIEW` (`VER`)** with 5 interactive demo circuits (*4-Bit Counter + Adder*, *RAM 16x4 + Decoder*, *Pong Arcade*, *QWERTY Keyboard + CPU Terminal*, and *Full 3-Page Showcase*), removing the demo items from the `FILE` menu.
 - **Added**: **Full QWERTY / ASCII Keyboard (`FULL_KEYBOARD_COMPONENT`)** peripheral with an interactive 5-row on-canvas keyboard (`A–Z`, `0–9`, `Shift`, `Space`, `Enter`, `Bksp`, `Esc`, and `▲/▼/◄/►` arrows), 8-bit `ASCII_7..0` output bus, `KEY_VALID` strobe, and expanded MMIO registers (`0xF006`–`0xF009`).

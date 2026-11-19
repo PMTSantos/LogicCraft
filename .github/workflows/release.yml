@@ -59,10 +59,9 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
           name: LogicCraft CAD ${{ github.event.inputs.tag_name || github.ref_name }}
-          body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
-          generate_release_notes: false
+          generate_release_notes: true
           files: |
             target/installer/*.exe
             target/installer/*.msi
@@ -96,10 +95,9 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
           name: LogicCraft CAD ${{ github.event.inputs.tag_name || github.ref_name }}
-          body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
-          generate_release_notes: false
+          generate_release_notes: true
           files: |
             target/installer/*.dmg
             target/installer/*.pkg
@@ -144,10 +142,9 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
           name: LogicCraft CAD ${{ github.event.inputs.tag_name || github.ref_name }}
-          body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
-          generate_release_notes: false
+          generate_release_notes: true
           files: |
             target/installer/*.deb
             target/installer/*-linux-*.tar.gz
