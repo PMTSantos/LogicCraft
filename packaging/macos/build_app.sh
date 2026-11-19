@@ -14,6 +14,18 @@ echo "========================================================"
 cd "$PROJECT_ROOT"
 
 echo "[1/3] Compiling release binary..."
+cargo check -p objc2@0.4.1 -p objc2@0.3.0-beta.3.patch-leaks.3 || true
+python3 - << 'EOF'
+import glob, os, re
+pattern = os.path.expanduser("~/.cargo/registry/src/*/objc2-0.[34]*/src/declare/ivar_forwarding_impls.rs")
+for p in glob.glob(pattern):
+    with open(p, "r", encoding="utf-8") as f:
+        s = f.read()
+    s = re.sub(r"fn nth\(&mut self, n: usize\) -> Option<<<Self as Deref>::Target as Iterator>::Item> \{\s*\(\*\*self\)\.nth\(n\)\s*\}", "", s)
+    s = re.sub(r"fn nth_back\(&mut self, n: usize\) -> Option<<<Self as Deref>::Target as Iterator>::Item> \{\s*\(\*\*self\)\.nth_back\(n\)\s*\}", "", s)
+    with open(p, "w", encoding="utf-8") as f:
+        f.write(s)
+EOF
 cargo build --release
 
 OUT_DIR="$PROJECT_ROOT/target/installer"
